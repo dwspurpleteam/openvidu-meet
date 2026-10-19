@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "Teile Audio oder Video, um mit der Aufnahme zu beginnen.",
 		"VIEW_RECORDINGS": "Aufnahmen anzeigen"
 	},
+	"WINDOW": {
+		"FLOAT": "Fenster abdocken",
+		"REATTACH": "Zurück ins Raster",
+		"MINIMIZE": "In die Seitenleiste minimieren",
+		"RESTORE": "Fenster wiederherstellen",
+		"MOVE": "Fenster mit Pfeiltasten bewegen; Umschalt für größere Schritte",
+		"RESIZE": "Fenstergröße mit Pfeiltasten ändern; Umschalt für größere Schritte",
+		"DOCK": "Minimierte Fenster",
+		"CAMERA": "Kamera",
+		"SCREEN": "Bildschirm",
+		"PLUGIN": "Plugin",
+		"DEMO": "Plugin-Demo",
+		"ADD_DEMO": "Transkriptfenster hinzufügen",
+		"DEMO_LIMIT": "Maximal vier Demofenster; durch Verlassen des Anrufs zurücksetzen."
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Ton stummschalten",
 		"UNMUTE_SOUND": "Stummschaltung aufheben",

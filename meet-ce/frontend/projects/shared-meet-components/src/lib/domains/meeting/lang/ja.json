@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "録音を開始するには、音声または動画を共有してください。",
 		"VIEW_RECORDINGS": "録画を表示"
 	},
+	"WINDOW": {
+		"FLOAT": "ウィンドウを切り離す",
+		"REATTACH": "グリッドに戻す",
+		"MINIMIZE": "サイドドックに最小化",
+		"RESTORE": "ウィンドウを復元",
+		"MOVE": "矢印キーで移動、Shiftで大きく移動",
+		"RESIZE": "矢印キーでサイズ変更、Shiftで大きく変更",
+		"DOCK": "最小化したウィンドウ",
+		"CAMERA": "カメラ",
+		"SCREEN": "画面",
+		"PLUGIN": "プラグイン",
+		"DEMO": "プラグインデモ",
+		"ADD_DEMO": "文字起こしウィンドウを追加",
+		"DEMO_LIMIT": "デモは最大4個です。通話を退出するとリセットされます。"
+	},
 	"STREAM": {
 		"MUTE_SOUND": "サウンドをミュートする",
 		"UNMUTE_SOUND": "サウンドを有効にする",

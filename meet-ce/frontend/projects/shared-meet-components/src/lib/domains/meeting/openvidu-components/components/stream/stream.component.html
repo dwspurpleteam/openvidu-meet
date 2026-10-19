@@ -137,23 +137,6 @@
 							}
 						</button>
 					}
-					@if (stream.participant.isLocal && stream.isCameraStream) {
-						<button
-							mat-icon-button
-							id="float-btn"
-							[disabled]="stream.isPinned"
-							(click)="toggleFloat()"
-							[matTooltip]="
-								stream.isFloating ? ('STREAM.DOCK' | translate) : ('STREAM.FLOAT' | translate)
-							"
-						>
-							@if (stream.isFloating) {
-								<mat-icon id="dock-icon" fontSet="material-symbols-outlined">grid_view</mat-icon>
-							} @else {
-								<mat-icon id="float-icon" fontSet="material-symbols-outlined">pip</mat-icon>
-							}
-						</button>
-					}
 				</div>
 			</div>
 		}

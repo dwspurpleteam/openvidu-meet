@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "Comparte audio o vídeo para poder empezar a grabar.",
 		"VIEW_RECORDINGS": "Ver grabaciones"
 	},
+	"WINDOW": {
+		"FLOAT": "Desacoplar ventana",
+		"REATTACH": "Volver a la cuadrícula",
+		"MINIMIZE": "Minimizar a la barra lateral",
+		"RESTORE": "Restaurar ventana",
+		"MOVE": "Mover con las flechas; Mayús para pasos mayores",
+		"RESIZE": "Cambiar tamaño con las flechas; Mayús para pasos mayores",
+		"DOCK": "Ventanas minimizadas",
+		"CAMERA": "Cámara",
+		"SCREEN": "Pantalla",
+		"PLUGIN": "Plugin",
+		"DEMO": "Demo de plugins",
+		"ADD_DEMO": "Añadir ventana de transcripción",
+		"DEMO_LIMIT": "Máximo cuatro ventanas de demo; se reinicia al salir de la llamada."
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Silenciar sonido",
 		"UNMUTE_SOUND": "Activar sonido",

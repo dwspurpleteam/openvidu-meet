@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "Share audio or video to start recording.",
 		"VIEW_RECORDINGS": "View recordings"
 	},
+	"WINDOW": {
+		"FLOAT": "Detach window",
+		"REATTACH": "Return to grid",
+		"MINIMIZE": "Minimize to side dock",
+		"RESTORE": "Restore window",
+		"MOVE": "Move window with arrow keys; Shift for larger steps",
+		"RESIZE": "Resize window with arrow keys; Shift for larger steps",
+		"DOCK": "Minimized windows",
+		"CAMERA": "Camera",
+		"SCREEN": "Screen",
+		"PLUGIN": "Plugin",
+		"DEMO": "Plugin demo",
+		"ADD_DEMO": "Add transcript window",
+		"DEMO_LIMIT": "Four demo windows maximum; reset by leaving the call."
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Mute sound",
 		"UNMUTE_SOUND": "Unmute sound",

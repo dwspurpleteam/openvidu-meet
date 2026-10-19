@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "请分享音频或视频以开始录制。",
 		"VIEW_RECORDINGS": "查看录像"
 	},
+	"WINDOW": {
+		"FLOAT": "分离窗口",
+		"REATTACH": "返回网格",
+		"MINIMIZE": "最小化到侧边栏",
+		"RESTORE": "恢复窗口",
+		"MOVE": "使用方向键移动，按住 Shift 加大步幅",
+		"RESIZE": "使用方向键调整大小，按住 Shift 加大步幅",
+		"DOCK": "已最小化的窗口",
+		"CAMERA": "摄像头",
+		"SCREEN": "屏幕",
+		"PLUGIN": "插件",
+		"DEMO": "插件演示",
+		"ADD_DEMO": "添加转录窗口",
+		"DEMO_LIMIT": "最多四个演示窗口；退出通话后重置。"
+	},
 	"STREAM": {
 		"MUTE_SOUND": "静音",
 		"UNMUTE_SOUND": "取消静音",

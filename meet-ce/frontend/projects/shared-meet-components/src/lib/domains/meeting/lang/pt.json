@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "Compartilhe áudio ou vídeo para começar a gravar.",
 		"VIEW_RECORDINGS": "Ver gravações"
 	},
+	"WINDOW": {
+		"FLOAT": "Desencaixar janela",
+		"REATTACH": "Voltar à grade",
+		"MINIMIZE": "Minimizar na barra lateral",
+		"RESTORE": "Restaurar janela",
+		"MOVE": "Mover com as setas; Shift para passos maiores",
+		"RESIZE": "Redimensionar com as setas; Shift para passos maiores",
+		"DOCK": "Janelas minimizadas",
+		"CAMERA": "Câmera",
+		"SCREEN": "Tela",
+		"PLUGIN": "Plugin",
+		"DEMO": "Demo de plugins",
+		"ADD_DEMO": "Adicionar janela de transcrição",
+		"DEMO_LIMIT": "Máximo de quatro janelas demo; saia da chamada para reiniciar."
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Mudo",
 		"UNMUTE_SOUND": "Com som",

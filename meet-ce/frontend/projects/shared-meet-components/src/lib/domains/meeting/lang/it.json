@@ -51,6 +51,21 @@
 		"NO_TRACKS_PUBLISHED": "Condividi audio o video per iniziare la registrazione.",
 		"VIEW_RECORDINGS": "Visualizza registrazioni"
 	},
+	"WINDOW": {
+		"FLOAT": "Stacca finestra",
+		"REATTACH": "Torna alla griglia",
+		"MINIMIZE": "Riduci nella barra laterale",
+		"RESTORE": "Ripristina finestra",
+		"MOVE": "Sposta con le frecce; Maiusc per passi maggiori",
+		"RESIZE": "Ridimensiona con le frecce; Maiusc per passi maggiori",
+		"DOCK": "Finestre ridotte",
+		"CAMERA": "Videocamera",
+		"SCREEN": "Schermo",
+		"PLUGIN": "Plugin",
+		"DEMO": "Demo dei plugin",
+		"ADD_DEMO": "Aggiungi finestra di trascrizione",
+		"DEMO_LIMIT": "Massimo quattro finestre demo; esci dalla chiamata per reimpostare."
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Disattiva l'audio",
 		"UNMUTE_SOUND": "Attiva l'audio",

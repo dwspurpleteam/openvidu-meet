@@ -1,9 +1,14 @@
 @if (lkRoom()) {
 	<div class="main-container" [class.withFooter]="areCaptionsEnabledByUser()">
+		<ov-meeting-plugin-demo-panel
+			[count]="pluginWindows().length"
+			[disabled]="!canAddPlugin()"
+			(add)="addDemoPlugin()"
+		/>
 		<ov-smart-layout
 			[ovSmartLayoutAllowed]="showLayoutSelector()"
 			[ovShowHiddenParticipantsIndicator]="!shouldShowOverlay()"
-			[class.withFooter]="areCaptionsEnabledByUser()"
+			[pluginWindows]="pluginWindows()"
 			(hiddenParticipantsIndicatorClicked)="toggleParticipantsPanel()"
 		>
 			<ng-container *ovLayoutAdditionalElements>
