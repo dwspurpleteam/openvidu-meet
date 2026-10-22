@@ -2,7 +2,8 @@ import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { PluginWindow } from '../../components/plugin-iframe-window/plugin-iframe-window.component';
 import { StreamLayoutStateService } from '../../openvidu-components/services/layout/stream-layout-state.service';
 import { MeetingPluginDemoPanelComponent } from '../meeting-plugin-demo-panel/meeting-plugin-demo-panel.component';
-import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
+import { MeetingPluginsPanelComponent } from '../meeting-plugins-panel/meeting-plugins-panel.component';
+import { PluginConfig, RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
 import { OpenViduComponentsUiModule, PanelService, PanelType } from '../../openvidu-components';
 import { SmartLayoutComponent } from '../../openvidu-components/components/layout/smart-layout/smart-layout.component';
@@ -13,6 +14,8 @@ import { MeetingStateService } from '../../services/meeting-state.service';
 import { MeetingCaptionsComponent } from '../meeting-captions/meeting-captions.component';
 import { MeetingWaitingPanelComponent } from '../meeting-waiting-panel/meeting-waiting-panel.component';
 
+const PLUGIN_WINDOW_PREFIX = 'plugin:';
+
 @Component({
 	selector: 'ov-meeting-custom-layout',
 	imports: [
@@ -21,7 +24,8 @@ import { MeetingWaitingPanelComponent } from '../meeting-waiting-panel/meeting-w
 		ShareRoomAccessLinkComponent,
 		MeetingCaptionsComponent,
 		MeetingWaitingPanelComponent,
-		MeetingPluginDemoPanelComponent
+		MeetingPluginDemoPanelComponent,
+		MeetingPluginsPanelComponent
 	],
 	templateUrl: './meeting-custom-layout.component.html',
 	styleUrl: './meeting-custom-layout.component.scss'
@@ -35,6 +39,10 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 	private readonly runtimeConfigService = inject(RuntimeConfigService);
 	private readonly windowState = inject(StreamLayoutStateService);
 	readonly pluginWindows = signal<readonly PluginWindow[]>([]);
+	readonly plugins = this.runtimeConfigService.plugins;
+	readonly openPluginIds = computed(() =>
+		this.pluginWindows().map((plugin) => plugin.id.slice(PLUGIN_WINDOW_PREFIX.length))
+	);
 	readonly canAddPlugin = computed(
 		() => this.runtimeConfigService.isReadyForRequests() && this.pluginWindows().length < 4
 	);
@@ -49,11 +57,34 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 		this.pluginWindows.update((plugins) => [
 			...plugins,
 			{
-				id: `plugin:demo-${number}`,
+				id: `${PLUGIN_WINDOW_PREFIX}demo-${number}`,
 				title: `Demo ${number}`,
 				url: this.runtimeConfigService.resolveUrl('assets/plugin-demo/transcript.html')
 			}
 		]);
+	}
+
+	async togglePlugin(plugin: PluginConfig): Promise<void> {
+		const windowId = PLUGIN_WINDOW_PREFIX + plugin.id;
+
+		if (this.openPluginIds().includes(plugin.id)) {
+			this.pluginWindows.update((plugins) => plugins.filter((open) => open.id !== windowId));
+			this.windowState.clearWindow(windowId);
+			return;
+		}
+
+		const room = this.lkRoom();
+
+		if (!room) return;
+
+		const url = new URL(plugin.url);
+		url.searchParams.set('callId', await room.getSid());
+		url.searchParams.set('roomId', room.name);
+		url.searchParams.set('participantId', room.localParticipant.identity);
+
+		if (!this.openPluginIds().includes(plugin.id)) {
+			this.pluginWindows.update((plugins) => [...plugins, { id: windowId, title: plugin.title, url: url.href }]);
+		}
 	}
 
 	ngOnDestroy(): void {

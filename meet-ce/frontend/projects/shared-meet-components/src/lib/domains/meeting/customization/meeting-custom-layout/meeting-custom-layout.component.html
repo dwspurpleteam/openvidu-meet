@@ -1,10 +1,18 @@
 @if (lkRoom()) {
 	<div class="main-container" [class.withFooter]="areCaptionsEnabledByUser()">
-		<ov-meeting-plugin-demo-panel
-			[count]="pluginWindows().length"
-			[disabled]="!canAddPlugin()"
-			(add)="addDemoPlugin()"
-		/>
+		@if (plugins.length) {
+			<ov-meeting-plugins-panel
+				[plugins]="plugins"
+				[openIds]="openPluginIds()"
+				(toggled)="togglePlugin($event)"
+			/>
+		} @else {
+			<ov-meeting-plugin-demo-panel
+				[count]="pluginWindows().length"
+				[disabled]="!canAddPlugin()"
+				(add)="addDemoPlugin()"
+			/>
+		}
 		<ov-smart-layout
 			[ovSmartLayoutAllowed]="showLayoutSelector()"
 			[ovShowHiddenParticipantsIndicator]="!shouldShowOverlay()"

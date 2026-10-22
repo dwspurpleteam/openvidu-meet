@@ -62,6 +62,7 @@
 		"CAMERA": "Camera",
 		"SCREEN": "Scherm",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plug-ins",
 		"DEMO": "Plugin-demo",
 		"ADD_DEMO": "Transcriptievenster toevoegen",
 		"DEMO_LIMIT": "Maximaal vier demovensters; verlaat het gesprek om te resetten."

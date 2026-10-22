@@ -35,6 +35,6 @@ export interface PluginWindow {
 export class PluginIframeWindowComponent {
 	private readonly sanitizer = inject(DomSanitizer);
 	readonly plugin = input.required<PluginWindow>();
-	// Only the built-in demo URL is supplied today; registry URLs need validation at the future API boundary.
+	// URLs come from the built-in demo or from MEET_PLUGINS, which the server accepts only as http(s).
 	readonly resourceUrl = computed(() => this.sanitizer.bypassSecurityTrustResourceUrl(this.plugin().url));
 }

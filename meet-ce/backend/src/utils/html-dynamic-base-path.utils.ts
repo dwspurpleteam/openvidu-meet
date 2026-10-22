@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import fs from 'fs';
 import { MEET_ENV } from '../environment.js';
+import { getPlugins } from './plugin.utils.js';
 
 let cachedHtml: string | null = null;
 const cachedOpenApiHtml = new Map<string, string>();
@@ -83,9 +84,17 @@ export function getBasePath(): string {
 }
 
 /**
+ * Serializes a value as JSON for an inline <script>: escaping `<` keeps data such as `</script>` from
+ * closing the tag.
+ */
+function toInlineScriptJson(value: unknown): string {
+	return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+/**
  * Applies runtime base path configuration to the index.html
  * - Replaces the <base href="/"> tag with the configured base path
- * - Adds a script with window.__OPENVIDU_MEET_CONFIG__ for frontend access
+ * - Adds a script with window.__OPENVIDU_MEET_CONFIG__ (base path and plugins) for frontend access
  *
  * @param htmlPath Path to the index.html file
  * @returns The modified HTML content
@@ -103,7 +112,8 @@ export function getHtmlWithBasePath(htmlPath: string): string {
 	html = html.replace(/<base href="[^"]*"\s*\/?>/i, `<base href="${basePath}">`);
 
 	// Inject runtime configuration script before the closing </head> tag
-	const configScript = `<script>window.__OPENVIDU_MEET_CONFIG__={basePath:"${basePath}"};</script>`;
+	const config = toInlineScriptJson({ basePath, plugins: getPlugins() });
+	const configScript = `<script>window.__OPENVIDU_MEET_CONFIG__=${config};</script>`;
 	html = html.replace('</head>', `${configScript}\n</head>`);
 
 	if (process.env.NODE_ENV === 'production') {

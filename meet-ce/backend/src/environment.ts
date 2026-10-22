@@ -104,6 +104,9 @@ export const MEET_ENV = {
 	// Live Captions configuration
 	CAPTIONS_ENABLED: process.env.MEET_CAPTIONS_ENABLED || 'false',
 
+	// Plugin pages participants can open in a meeting window: a JSON array of { id, title, url }
+	PLUGINS: process.env.MEET_PLUGINS ?? '',
+
 	// Deployment configuration
 	MODULES_FILE: process.env.MODULES_FILE || undefined,
 	MODULE_NAME: process.env.MODULE_NAME || 'openviduMeet',
@@ -154,6 +157,10 @@ export const logEnvVars = () => {
 
 	if (MEET_ENV.INITIAL_WEBHOOK_ENABLED === 'true') {
 		console.log('INITIAL WEBHOOK URL:', text(MEET_ENV.INITIAL_WEBHOOK_URL));
+	}
+
+	if (MEET_ENV.PLUGINS) {
+		console.log('PLUGINS:', text(MEET_ENV.PLUGINS));
 	}
 
 	console.log('---------------------------------------------------------');

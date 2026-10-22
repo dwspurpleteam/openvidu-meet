@@ -62,6 +62,7 @@
 		"CAMERA": "Videocamera",
 		"SCREEN": "Schermo",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plugin",
 		"DEMO": "Demo dei plugin",
 		"ADD_DEMO": "Aggiungi finestra di trascrizione",
 		"DEMO_LIMIT": "Massimo quattro finestre demo; esci dalla chiamata per reimpostare."

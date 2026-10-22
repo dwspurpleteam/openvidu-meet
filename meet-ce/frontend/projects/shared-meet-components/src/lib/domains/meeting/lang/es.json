@@ -62,6 +62,7 @@
 		"CAMERA": "Cámara",
 		"SCREEN": "Pantalla",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plugins",
 		"DEMO": "Demo de plugins",
 		"ADD_DEMO": "Añadir ventana de transcripción",
 		"DEMO_LIMIT": "Máximo cuatro ventanas de demo; se reinicia al salir de la llamada."

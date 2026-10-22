@@ -62,6 +62,7 @@
 		"CAMERA": "Kamera",
 		"SCREEN": "Bildschirm",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plugins",
 		"DEMO": "Plugin-Demo",
 		"ADD_DEMO": "Transkriptfenster hinzufügen",
 		"DEMO_LIMIT": "Maximal vier Demofenster; durch Verlassen des Anrufs zurücksetzen."

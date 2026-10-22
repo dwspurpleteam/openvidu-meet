@@ -62,6 +62,7 @@
 		"CAMERA": "摄像头",
 		"SCREEN": "屏幕",
 		"PLUGIN": "插件",
+		"PLUGINS": "插件",
 		"DEMO": "插件演示",
 		"ADD_DEMO": "添加转录窗口",
 		"DEMO_LIMIT": "最多四个演示窗口；退出通话后重置。"

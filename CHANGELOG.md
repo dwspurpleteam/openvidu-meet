@@ -86,7 +86,7 @@ registered on both receives it twice.
 
 #### UI
 
-- Camera, avatar, screen-share and demo plugin iframe tiles can detach, move, resize and minimize to a side dock.
+- Camera, avatar, screen-share and plugin iframe tiles can detach, move, resize and minimize to a side dock.
 - A status rail above the meeting layout (elapsed meeting time, recording, duration countdown, encryption,
   hidden participants), and notices when a recording starts and stops.
 - A participant who speaks while muted is told, and so is one whose microphone the operating system has
@@ -94,6 +94,11 @@ registered on both receives it twice.
 - Media controls in the participants panel: the microphone, camera and screen share state of every
   participant, and per-device mute controls next to **Promote** and **Kick**.
 - The meeting limits and the initial media state in the room wizard, and copyable room ids.
+
+#### Deployment
+
+- `MEET_PLUGINS` lists plugin pages that participants open in a meeting window, with the room SID, room name and
+  participant identity passed as the `callId`, `roomId` and `participantId` query parameters.
 
 ### Improved
 

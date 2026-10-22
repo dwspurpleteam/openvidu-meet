@@ -1,9 +1,16 @@
 import { computed, Service, signal } from '@angular/core';
 
+export interface PluginConfig {
+	id: string;
+	title: string;
+	url: string;
+}
+
 declare global {
 	interface Window {
 		__OPENVIDU_MEET_CONFIG__?: {
 			basePath: string;
+			plugins?: PluginConfig[];
 		};
 	}
 }
@@ -66,6 +73,9 @@ export class RuntimeConfigService {
 	 * webcomponent or inside a cross-document `<iframe>`.
 	 */
 	readonly isEmbeddedMode = computed(() => this._webcomponentMode() || this.isIframeMode());
+
+	/** Plugin pages the server injects from `MEET_PLUGINS`; none in webcomponent mode. */
+	readonly plugins: readonly PluginConfig[] = window.__OPENVIDU_MEET_CONFIG__?.plugins ?? [];
 
 	constructor() {
 		// Read from injected config, fallback to document base element, then to '/'

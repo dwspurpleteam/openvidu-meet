@@ -62,6 +62,7 @@
 		"CAMERA": "Câmera",
 		"SCREEN": "Tela",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plugins",
 		"DEMO": "Demo de plugins",
 		"ADD_DEMO": "Adicionar janela de transcrição",
 		"DEMO_LIMIT": "Máximo de quatro janelas demo; saia da chamada para reiniciar."

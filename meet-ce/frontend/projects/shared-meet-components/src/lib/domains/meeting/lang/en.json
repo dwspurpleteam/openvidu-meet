@@ -62,6 +62,7 @@
 		"CAMERA": "Camera",
 		"SCREEN": "Screen",
 		"PLUGIN": "Plugin",
+		"PLUGINS": "Plugins",
 		"DEMO": "Plugin demo",
 		"ADD_DEMO": "Add transcript window",
 		"DEMO_LIMIT": "Four demo windows maximum; reset by leaving the call."
