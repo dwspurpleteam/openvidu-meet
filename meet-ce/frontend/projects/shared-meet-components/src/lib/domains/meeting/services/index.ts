@@ -4,4 +4,6 @@ export * from './meeting-entry.service';
 export * from './meeting-event-handler.service';
 export * from './meeting-lobby.service';
 export * from './meeting-state.service';
+export * from './plugin-manager.service';
+export * from './plugin-registry.service';
 export * from './meeting-moderation.service';

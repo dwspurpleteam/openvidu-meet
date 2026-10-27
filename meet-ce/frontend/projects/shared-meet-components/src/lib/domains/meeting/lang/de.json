@@ -61,10 +61,7 @@
 		"DOCK": "Minimierte Fenster",
 		"CAMERA": "Kamera",
 		"SCREEN": "Bildschirm",
-		"PLUGIN": "Plugin",
-		"DEMO": "Plugin-Demo",
-		"ADD_DEMO": "Transkriptfenster hinzufügen",
-		"DEMO_LIMIT": "Maximal vier Demofenster; durch Verlassen des Anrufs zurücksetzen."
+		"PLUGIN": "Plugin"
 	},
 	"STREAM": {
 		"MUTE_SOUND": "Ton stummschalten",
@@ -302,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Öffne die Einstellungen deines Computers, um das Mikrofon zu aktivieren und die Lautstärke zu erhöhen",
 		"MUTED_SPEAKING": "Sprichst du gerade? Dein Mikrofon ist aus. Klicke darauf, um es zu aktivieren.",
 		"CLOSE": "Schließen"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Plugins werden geladen…",
+		"LOAD_FAILED": "Der Plugin-Katalog ist nicht verfügbar.",
+		"RETRY": "Erneut versuchen",
+		"AVAILABLE": "Verfügbare Plugins",
+		"ACTIVE": "In diesem Meeting aktiv",
+		"NONE_ACTIVE": "Keine Plugins sind aktiv.",
+		"ACTIVATE": "Aktivieren",
+		"STOP": "Trennen",
+		"UNAVAILABLE": "Nicht verfügbar",
+		"DISCONNECTED": "Plugin-Steuerung erfordert eine Verbindung und die Berechtigung zum Senden von Daten.",
+		"SYNC_FAILED": "Der Plugin-Status konnte nicht synchronisiert werden.",
+		"STOP_FAILED": "Das Plugin konnte nicht getrennt werden.",
+		"EMPTY_CATALOG": "Keine Plugins vorhanden.",
+		"STATUS": {
+			"AVAILABLE": "Verfügbar",
+			"ACTIVATING": "Wird aktiviert…",
+			"ACTIVE": "Aktiv",
+			"FORBIDDEN": "Keine Berechtigung",
+			"REJECTED": "Aktivierung abgelehnt",
+			"ACTIVATION_FAILED": "Aktivierung fehlgeschlagen",
+			"STOPPING": "Wird getrennt…",
+			"STOPPED": "Getrennt",
+			"DEGRADED": "Beeinträchtigt",
+			"SUSPENDING": "Wird angehalten…",
+			"SUSPENDED": "Angehalten",
+			"RESUMING": "Wird fortgesetzt…",
+			"FAILED": "Fehlgeschlagen"
+		}
 	}
 }

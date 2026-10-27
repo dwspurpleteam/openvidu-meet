@@ -15,15 +15,15 @@ test.describe('Meeting windows', () => {
 
 	test.afterEach(async () => deleteRooms([roomId]));
 
-	test('keeps four independent iframe apps alive through drag, resize, dock and reattach', async ({ page }) => {
+	test('keeps independent plugin iframes alive through drag, resize, dock and reattach', async ({ page }) => {
 		await openMeeting(page, accessUrl);
-		const add = page.getByTestId('add-demo-plugin');
-
-		for (let i = 0; i < 4; i++) await add.click();
-
-		await expect(page.locator('.plugin-window iframe')).toHaveCount(4);
-		await expect(add).toBeDisabled();
-		const shell = page.locator('[data-window-id="plugin:demo-1"]');
+		await page.getByTestId('plugins-button').click();
+		await page.getByTestId('activate-plugin-transcript').click();
+		await page.getByTestId('activate-plugin-notes').click();
+		await expect(page.locator('.plugin-window iframe')).toHaveCount(2);
+		await page.locator('#plugins-container .panel-close-button').click();
+		const shell = page.locator('.plugin-window').filter({ has: page.locator('iframe[title="Transcript"]') });
+		const windowId = (await shell.getAttribute('data-window-id'))!;
 		const iframe = shell.locator('iframe');
 		const original = await iframe.elementHandle();
 		const notes = iframe.contentFrame().locator('#notes');
@@ -53,7 +53,7 @@ test.describe('Meeting windows', () => {
 		await page.mouse.up();
 		await expect(shell).toBeHidden();
 		expect(await original!.evaluate((node) => node.isConnected)).toBe(true);
-		await page.locator('[data-restore-window="plugin:demo-1"]').click();
+		await page.locator(`[data-restore-window="${windowId}"]`).click();
 		await expect(shell).toBeVisible();
 		await expect(notes).toHaveValue('Persistent notes');
 		await expect(iframe.contentFrame().locator('body')).toHaveAttribute('data-incarnation', 'original');
@@ -73,6 +73,39 @@ test.describe('Meeting windows', () => {
 		}).toPass();
 		await leaveMeeting(page);
 		await expect(page.locator('.plugin-window iframe')).toHaveCount(0);
+	});
+
+	test('shares activation with late joiners and stops minimized plugin windows for everyone', async ({ page }) => {
+		await openMeeting(page, accessUrl, { name: 'First' });
+		await page.getByTestId('plugins-button').click();
+		await page.getByTestId('activate-plugin-transcript').click();
+		await expect(page.locator('.plugin-window iframe')).toHaveCount(1);
+		await expect(
+			page.locator('#plugins-container').getByText('Unavailable by permission', { exact: true })
+		).toBeVisible();
+		await page.getByTestId('activate-plugin-rejected').click();
+		await expect(
+			page.locator('#plugins-container').getByText('Activation rejected', { exact: true })
+		).toBeVisible();
+		await expect(page.locator('.plugin-window iframe')).toHaveCount(1);
+		await page.locator('#plugins-container .panel-close-button').click();
+		await page.locator('.plugin-window [data-window-action="minimize"]').click();
+		const peer = await page.context().newPage();
+
+		try {
+			await openMeeting(peer, accessUrl, { name: 'Late joiner' });
+			await expect(peer.locator('.plugin-window iframe')).toHaveCount(1);
+			await peer.getByTestId('plugins-button').click();
+			await peer.getByTestId('activate-plugin-notes').click();
+			await expect(page.locator('.plugin-window iframe')).toHaveCount(2);
+			await peer.getByTestId('stop-plugin-transcript').click();
+			await expect(page.locator('iframe[title="Transcript"]')).toHaveCount(0);
+			await expect(peer.locator('iframe[title="Transcript"]')).toHaveCount(0);
+			await expect(page.locator('[data-restore-window^="plugin:"]')).toHaveCount(0);
+			await expect(page.locator('iframe[title="Notes"]')).toHaveCount(1);
+		} finally {
+			await peer.close();
+		}
 	});
 
 	test('detaches remote avatars and both screen shares without duplicating audio', async ({ page }) => {

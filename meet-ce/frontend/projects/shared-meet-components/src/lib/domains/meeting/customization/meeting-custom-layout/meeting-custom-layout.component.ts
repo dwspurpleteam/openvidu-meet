@@ -1,7 +1,8 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, untracked } from '@angular/core';
 import { PluginWindow } from '../../components/plugin-iframe-window/plugin-iframe-window.component';
 import { StreamLayoutStateService } from '../../openvidu-components/services/layout/stream-layout-state.service';
-import { MeetingPluginDemoPanelComponent } from '../meeting-plugin-demo-panel/meeting-plugin-demo-panel.component';
+import { PluginManagerService } from '../../services/plugin-manager.service';
+import { PluginRegistryService } from '../../services/plugin-registry.service';
 import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
 import { OpenViduComponentsUiModule, PanelService, PanelType } from '../../openvidu-components';
@@ -20,8 +21,7 @@ import { MeetingWaitingPanelComponent } from '../meeting-waiting-panel/meeting-w
 		SmartLayoutComponent,
 		ShareRoomAccessLinkComponent,
 		MeetingCaptionsComponent,
-		MeetingWaitingPanelComponent,
-		MeetingPluginDemoPanelComponent
+		MeetingWaitingPanelComponent
 	],
 	templateUrl: './meeting-custom-layout.component.html',
 	styleUrl: './meeting-custom-layout.component.scss'
@@ -34,26 +34,31 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 	protected panelService = inject(PanelService);
 	private readonly runtimeConfigService = inject(RuntimeConfigService);
 	private readonly windowState = inject(StreamLayoutStateService);
-	readonly pluginWindows = signal<readonly PluginWindow[]>([]);
-	readonly canAddPlugin = computed(
-		() => this.runtimeConfigService.isReadyForRequests() && this.pluginWindows().length < 4
+	private readonly pluginManager = inject(PluginManagerService);
+	private readonly pluginRegistry = inject(PluginRegistryService);
+	readonly pluginWindows = computed<readonly PluginWindow[]>(() =>
+		this.pluginManager
+			.activations()
+			.filter((activation) => activation.state === 'ACTIVE' && this.runtimeConfigService.isReadyForRequests())
+			.map((activation) => ({
+				id: `plugin:${activation.activationId}`,
+				title: this.pluginRegistry.find(activation.pluginId)?.name ?? activation.pluginId,
+				url: this.pluginRegistry.uiUrl(activation.pluginId)
+			}))
 	);
 	private readonly hasVisiblePlugin = computed(() =>
 		this.pluginWindows().some((plugin) => this.windowState.windowPlacement(plugin.id).mode !== 'minimized')
 	);
 
-	addDemoPlugin(): void {
-		if (!this.canAddPlugin()) return;
-
-		const number = this.pluginWindows().length + 1;
-		this.pluginWindows.update((plugins) => [
-			...plugins,
-			{
-				id: `plugin:demo-${number}`,
-				title: `Demo ${number}`,
-				url: this.runtimeConfigService.resolveUrl('assets/plugin-demo/transcript.html')
-			}
-		]);
+	constructor() {
+		let previousIds: string[] = [];
+		effect(() => {
+			const ids = this.pluginWindows().map((plugin) => plugin.id);
+			untracked(() =>
+				previousIds.filter((id) => !ids.includes(id)).forEach((id) => this.windowState.clearWindow(id))
+			);
+			previousIds = ids;
+		});
 	}
 
 	ngOnDestroy(): void {

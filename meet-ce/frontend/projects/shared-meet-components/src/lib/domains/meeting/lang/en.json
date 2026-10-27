@@ -61,10 +61,7 @@
 		"DOCK": "Minimized windows",
 		"CAMERA": "Camera",
 		"SCREEN": "Screen",
-		"PLUGIN": "Plugin",
-		"DEMO": "Plugin demo",
-		"ADD_DEMO": "Add transcript window",
-		"DEMO_LIMIT": "Four demo windows maximum; reset by leaving the call."
+		"PLUGIN": "Plugin"
 	},
 	"STREAM": {
 		"MUTE_SOUND": "Mute sound",
@@ -302,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Go to your computer's settings to unmute the microphone and turn up the volume",
 		"MUTED_SPEAKING": "Are you talking? Your microphone is off. Click it to turn it on.",
 		"CLOSE": "Dismiss"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Loading plugins…",
+		"LOAD_FAILED": "The plugin catalog is unavailable.",
+		"RETRY": "Try again",
+		"AVAILABLE": "Available plugins",
+		"ACTIVE": "Active in this meeting",
+		"NONE_ACTIVE": "No plugins are active.",
+		"ACTIVATE": "Activate",
+		"STOP": "Disconnect",
+		"UNAVAILABLE": "Unavailable",
+		"DISCONNECTED": "Plugin controls require a connection and data-publishing permission.",
+		"SYNC_FAILED": "Plugin state could not be synchronized.",
+		"STOP_FAILED": "The plugin could not be disconnected.",
+		"EMPTY_CATALOG": "No plugins are listed.",
+		"STATUS": {
+			"AVAILABLE": "Available",
+			"ACTIVATING": "Activating…",
+			"ACTIVE": "Active",
+			"FORBIDDEN": "Unavailable by permission",
+			"REJECTED": "Activation rejected",
+			"ACTIVATION_FAILED": "Activation failed",
+			"STOPPING": "Disconnecting…",
+			"STOPPED": "Disconnected",
+			"DEGRADED": "Degraded",
+			"SUSPENDING": "Suspending…",
+			"SUSPENDED": "Suspended",
+			"RESUMING": "Resuming…",
+			"FAILED": "Failed"
+		}
 	}
 }

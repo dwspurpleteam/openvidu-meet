@@ -61,10 +61,7 @@
 		"DOCK": "最小化したウィンドウ",
 		"CAMERA": "カメラ",
 		"SCREEN": "画面",
-		"PLUGIN": "プラグイン",
-		"DEMO": "プラグインデモ",
-		"ADD_DEMO": "文字起こしウィンドウを追加",
-		"DEMO_LIMIT": "デモは最大4個です。通話を退出するとリセットされます。"
+		"PLUGIN": "プラグイン"
 	},
 	"STREAM": {
 		"MUTE_SOUND": "サウンドをミュートする",
@@ -302,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "パソコンの設定でマイクのミュートを解除し、音量を上げてください",
 		"MUTED_SPEAKING": "話していますか？マイクがオフになっています。クリックしてオンにしてください。",
 		"CLOSE": "閉じる"
+	},
+	"PLUGINS": {
+		"TITLE": "プラグイン",
+		"LOADING": "プラグインを読み込み中…",
+		"LOAD_FAILED": "プラグイン一覧を取得できません。",
+		"RETRY": "再試行",
+		"AVAILABLE": "利用可能なプラグイン",
+		"ACTIVE": "この会議で有効",
+		"NONE_ACTIVE": "有効なプラグインはありません。",
+		"ACTIVATE": "有効化",
+		"STOP": "切断",
+		"UNAVAILABLE": "利用不可",
+		"DISCONNECTED": "操作には接続とデータ送信権限が必要です。",
+		"SYNC_FAILED": "プラグインの状態を同期できませんでした。",
+		"STOP_FAILED": "プラグインを切断できませんでした。",
+		"EMPTY_CATALOG": "プラグインが登録されていません。",
+		"STATUS": {
+			"AVAILABLE": "利用可能",
+			"ACTIVATING": "有効化中…",
+			"ACTIVE": "有効",
+			"FORBIDDEN": "権限がありません",
+			"REJECTED": "有効化が拒否されました",
+			"ACTIVATION_FAILED": "有効化に失敗しました",
+			"STOPPING": "切断中…",
+			"STOPPED": "切断済み",
+			"DEGRADED": "機能低下",
+			"SUSPENDING": "一時停止中…",
+			"SUSPENDED": "一時停止",
+			"RESUMING": "再開中…",
+			"FAILED": "失敗"
+		}
 	}
 }

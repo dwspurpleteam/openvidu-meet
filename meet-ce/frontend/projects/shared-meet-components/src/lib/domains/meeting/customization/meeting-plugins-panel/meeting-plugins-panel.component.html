@@ -1,0 +1,125 @@
+<div class="panel-container" id="plugins-container">
+	<div class="panel-header-container">
+		<mat-icon class="panel-icon">extension</mat-icon>
+		<h3 class="panel-title">{{ 'PLUGINS.TITLE' | translate }}</h3>
+		<span class="panel-count">{{ manager.activations().length }}</span>
+		<button
+			class="panel-close-button"
+			type="button"
+			[attr.aria-label]="'PANEL.CLOSE' | translate"
+			mat-icon-button
+			[matTooltip]="'PANEL.CLOSE' | translate"
+			(click)="panels.closePanel()"
+		>
+			<mat-icon>close</mat-icon>
+		</button>
+	</div>
+
+	<div class="scrollable" aria-live="polite">
+		@if (!manager.connected()) {
+			<p class="connection-notice" role="status">{{ 'PLUGINS.DISCONNECTED' | translate }}</p>
+		}
+		@if (manager.syncFailed()) {
+			<p class="connection-notice" role="alert">{{ 'PLUGINS.SYNC_FAILED' | translate }}</p>
+			<button mat-button type="button" [disabled]="!manager.connected()" (click)="manager.refresh()">
+				{{ 'PLUGINS.RETRY' | translate }}
+			</button>
+		}
+		@if (loading()) {
+			<div class="state-message"><mat-spinner diameter="28" />{{ 'PLUGINS.LOADING' | translate }}</div>
+		} @else if (loadFailed()) {
+			<div class="state-message error-state">
+				<mat-icon>error_outline</mat-icon>
+				<span>{{ 'PLUGINS.LOAD_FAILED' | translate }}</span>
+				<button mat-stroked-button type="button" (click)="load()">{{ 'PLUGINS.RETRY' | translate }}</button>
+			</div>
+		} @else {
+			<section class="plugin-section" aria-labelledby="available-plugins-title">
+				<h4 id="available-plugins-title">{{ 'PLUGINS.AVAILABLE' | translate }}</h4>
+				@if (plugins().length === 0) {
+					<p class="empty-message">{{ 'PLUGINS.EMPTY_CATALOG' | translate }}</p>
+				}
+				@for (plugin of plugins(); track plugin.id) {
+					@let pluginStatus = status(plugin.id);
+					<article
+						class="plugin-row"
+						[class.is-active]="pluginStatus === 'ACTIVE' || pluginStatus === 'STOPPING'"
+					>
+						<div class="plugin-copy">
+							<div class="plugin-name">
+								<mat-icon aria-hidden="true">extension</mat-icon>
+								<strong>{{ plugin.name }}</strong>
+							</div>
+							<p>{{ plugin.description }}</p>
+							<span class="plugin-status" [class]="'status-' + pluginStatus.toLowerCase()">
+								{{ 'PLUGINS.STATUS.' + pluginStatus | translate }}
+							</span>
+						</div>
+						@if (pluginStatus === 'ACTIVE' || pluginStatus === 'STOPPING') {
+							@if (pluginStatus === 'STOPPING') {
+								<mat-spinner diameter="20" />
+							} @else {
+								<mat-icon class="active-icon" aria-label="{{ 'PLUGINS.STATUS.ACTIVE' | translate }}"
+									>check_circle</mat-icon
+								>
+							}
+						} @else if (pluginStatus === 'FORBIDDEN') {
+							<button mat-button type="button" disabled>{{ 'PLUGINS.UNAVAILABLE' | translate }}</button>
+						} @else {
+							<button
+								mat-flat-button
+								type="button"
+								[attr.data-testid]="'activate-plugin-' + plugin.id"
+								[disabled]="
+									!manager.connected() || pluginStatus === 'ACTIVATING' || pluginStatus === 'STOPPING'
+								"
+								(click)="manager.activate(plugin.id)"
+							>
+								@if (pluginStatus === 'ACTIVATING') {
+									<mat-spinner diameter="18" />
+								} @else {
+									{{ 'PLUGINS.ACTIVATE' | translate }}
+								}
+							</button>
+						}
+					</article>
+				}
+			</section>
+
+			<section class="plugin-section active-section" aria-labelledby="active-plugins-title">
+				<h4 id="active-plugins-title">{{ 'PLUGINS.ACTIVE' | translate }}</h4>
+				@if (manager.activations().length === 0) {
+					<p class="empty-message">{{ 'PLUGINS.NONE_ACTIVE' | translate }}</p>
+				} @else {
+					@for (activation of manager.activations(); track activation.activationId) {
+						<article class="active-row">
+							<div>
+								<strong>{{ registry.find(activation.pluginId)?.name ?? activation.pluginId }}</strong>
+								<span>{{
+									'PLUGINS.STATUS.' + (manager.pending()[activation.pluginId] ?? activation.state)
+										| translate
+								}}</span>
+								@if (manager.errors()[activation.pluginId] === 'STOP_FAILED') {
+									<span role="alert">{{ 'PLUGINS.STOP_FAILED' | translate }}</span>
+								}
+							</div>
+							<button
+								mat-stroked-button
+								type="button"
+								[attr.data-testid]="'stop-plugin-' + activation.pluginId"
+								[disabled]="!manager.connected() || !!manager.pending()[activation.pluginId]"
+								(click)="manager.stop(activation.activationId)"
+							>
+								@if (manager.pending()[activation.pluginId] === 'STOPPING') {
+									<mat-spinner diameter="18" />
+								} @else {
+									{{ 'PLUGINS.STOP' | translate }}
+								}
+							</button>
+						</article>
+					}
+				}
+			</section>
+		}
+	</div>
+</div>

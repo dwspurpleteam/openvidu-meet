@@ -61,10 +61,7 @@
 		"DOCK": "Janelas minimizadas",
 		"CAMERA": "Câmera",
 		"SCREEN": "Tela",
-		"PLUGIN": "Plugin",
-		"DEMO": "Demo de plugins",
-		"ADD_DEMO": "Adicionar janela de transcrição",
-		"DEMO_LIMIT": "Máximo de quatro janelas demo; saia da chamada para reiniciar."
+		"PLUGIN": "Plugin"
 	},
 	"STREAM": {
 		"MUTE_SOUND": "Mudo",
@@ -302,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Acesse as configurações do seu computador para ativar o microfone e aumentar o volume",
 		"MUTED_SPEAKING": "Você está falando? O microfone está desativado. Clique nele para ativá-lo.",
 		"CLOSE": "Fechar"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Carregando plugins…",
+		"LOAD_FAILED": "O catálogo de plugins não está disponível.",
+		"RETRY": "Tentar novamente",
+		"AVAILABLE": "Plugins disponíveis",
+		"ACTIVE": "Ativos nesta reunião",
+		"NONE_ACTIVE": "Nenhum plugin ativo.",
+		"ACTIVATE": "Ativar",
+		"STOP": "Desconectar",
+		"UNAVAILABLE": "Indisponível",
+		"DISCONNECTED": "Os controles exigem conexão e permissão para enviar dados.",
+		"SYNC_FAILED": "Não foi possível sincronizar o estado dos plugins.",
+		"STOP_FAILED": "Não foi possível desconectar o plugin.",
+		"EMPTY_CATALOG": "Nenhum plugin no catálogo.",
+		"STATUS": {
+			"AVAILABLE": "Disponível",
+			"ACTIVATING": "Ativando…",
+			"ACTIVE": "Ativo",
+			"FORBIDDEN": "Sem permissão",
+			"REJECTED": "Ativação rejeitada",
+			"ACTIVATION_FAILED": "Falha na ativação",
+			"STOPPING": "Desconectando…",
+			"STOPPED": "Desconectado",
+			"DEGRADED": "Degradado",
+			"SUSPENDING": "Suspendendo…",
+			"SUSPENDED": "Suspenso",
+			"RESUMING": "Retomando…",
+			"FAILED": "Falha"
+		}
 	}
 }

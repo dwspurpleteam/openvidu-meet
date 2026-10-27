@@ -1,0 +1,131 @@
+:host {
+	display: block;
+	height: 100%;
+}
+
+.panel-icon {
+	color: var(--ov-accent-action-color);
+}
+
+.panel-count {
+	margin-left: 8px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--ov-text-secondary-color);
+	background: color-mix(in srgb, var(--ov-text-surface-color) 8%, transparent);
+}
+
+.scrollable {
+	padding: 0 12px 18px;
+	overflow: auto;
+}
+
+.plugin-section + .plugin-section {
+	margin-top: 20px;
+}
+
+h4 {
+	margin: 8px 4px;
+	color: var(--ov-text-secondary-color);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.plugin-row,
+.active-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--ov-border-color);
+	border-radius: var(--ov-input-radius, 6px);
+}
+
+.plugin-row + .plugin-row,
+.active-row + .active-row {
+	margin-top: 8px;
+}
+
+.plugin-row.is-active {
+	border-color: var(--ov-accent-action-color);
+}
+
+.plugin-copy,
+.active-row > div {
+	min-width: 0;
+	flex: 1;
+}
+
+.plugin-name {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--ov-text-surface-color);
+}
+
+.plugin-name mat-icon {
+	font-size: 20px;
+	color: var(--ov-text-secondary-color);
+}
+
+.plugin-copy p {
+	margin: 5px 0;
+	color: var(--ov-text-secondary-color);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.plugin-status,
+.active-row span {
+	color: var(--ov-text-secondary-color);
+	font-size: 11px;
+}
+
+.status-active {
+	color: var(--ov-success-color);
+}
+
+.status-forbidden,
+.status-rejected,
+.status-activation_failed,
+.status-stop_failed {
+	color: var(--ov-error-color);
+}
+
+.active-icon {
+	color: var(--ov-success-color);
+}
+
+.active-row {
+	padding: 10px 12px;
+}
+
+.active-row > div {
+	display: grid;
+	gap: 3px;
+}
+
+.state-message,
+.empty-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	min-height: 120px;
+	padding: 16px;
+	color: var(--ov-text-secondary-color);
+	font-size: 13px;
+	text-align: center;
+}
+
+.error-state {
+	flex-direction: column;
+	color: var(--ov-error-color);
+}
+
+button mat-spinner {
+	display: inline-block;
+}

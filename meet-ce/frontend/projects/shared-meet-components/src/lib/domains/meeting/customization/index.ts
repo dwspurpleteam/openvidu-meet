@@ -4,7 +4,7 @@ export * from './meeting-invite-panel/meeting-invite-panel.component';
 export * from './meeting-participant-item-content/meeting-participant-item-content.component';
 export * from './meeting-participant-item/meeting-participant-item.component';
 export * from './meeting-settings-extensions/meeting-settings-extensions.component';
-export * from './meeting-plugin-demo-panel/meeting-plugin-demo-panel.component';
+export * from './meeting-plugins-panel/meeting-plugins-panel.component';
 export * from './meeting-toolbar-copy-link-button/meeting-toolbar-copy-link-button.component';
 export * from './meeting-toolbar-extra-buttons/meeting-toolbar-extra-buttons.component';
 export * from './meeting-toolbar-leave-button/meeting-toolbar-leave-button.component';

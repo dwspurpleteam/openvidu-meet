@@ -61,10 +61,7 @@
 		"DOCK": "Geminimaliseerde vensters",
 		"CAMERA": "Camera",
 		"SCREEN": "Scherm",
-		"PLUGIN": "Plugin",
-		"DEMO": "Plugin-demo",
-		"ADD_DEMO": "Transcriptievenster toevoegen",
-		"DEMO_LIMIT": "Maximaal vier demovensters; verlaat het gesprek om te resetten."
+		"PLUGIN": "Plugin"
 	},
 	"STREAM": {
 		"MUTE_SOUND": "Geluid dempen",
@@ -302,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Ga naar de instellingen van je computer om de microfoon aan te zetten en het volume te verhogen",
 		"MUTED_SPEAKING": "Praat je? Je microfoon staat uit. Klik erop om hem aan te zetten.",
 		"CLOSE": "Sluiten"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Plugins laden…",
+		"LOAD_FAILED": "De plugincatalogus is niet beschikbaar.",
+		"RETRY": "Opnieuw proberen",
+		"AVAILABLE": "Beschikbare plugins",
+		"ACTIVE": "Actief in deze vergadering",
+		"NONE_ACTIVE": "Geen actieve plugins.",
+		"ACTIVATE": "Activeren",
+		"STOP": "Verbinding verbreken",
+		"UNAVAILABLE": "Niet beschikbaar",
+		"DISCONNECTED": "Pluginbediening vereist een verbinding en toestemming om gegevens te verzenden.",
+		"SYNC_FAILED": "De pluginstatus kon niet worden gesynchroniseerd.",
+		"STOP_FAILED": "De plugin kon niet worden losgekoppeld.",
+		"EMPTY_CATALOG": "Geen plugins in de catalogus.",
+		"STATUS": {
+			"AVAILABLE": "Beschikbaar",
+			"ACTIVATING": "Activeren…",
+			"ACTIVE": "Actief",
+			"FORBIDDEN": "Geen toestemming",
+			"REJECTED": "Activering geweigerd",
+			"ACTIVATION_FAILED": "Activering mislukt",
+			"STOPPING": "Verbinding verbreken…",
+			"STOPPED": "Losgekoppeld",
+			"DEGRADED": "Verminderde werking",
+			"SUSPENDING": "Onderbreken…",
+			"SUSPENDED": "Onderbroken",
+			"RESUMING": "Hervatten…",
+			"FAILED": "Mislukt"
+		}
 	}
 }
