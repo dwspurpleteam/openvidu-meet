@@ -202,9 +202,7 @@ export class ParticipantModel {
 	readonly streams = computed(() => {
 		const allTracks = this.publications();
 
-		const cameraVideoTrack = allTracks.find(
-			(t) => t.source === Track.Source.Camera && t.kind === Track.Kind.Video
-		);
+		const cameraVideoTrack = allTracks.find((t) => t.source === Track.Source.Camera && t.kind === Track.Kind.Video);
 		const micAudioTrack = allTracks.find((t) => t.source === Track.Source.Microphone);
 		const screenVideoTrack = allTracks.find(
 			(t) => t.source === Track.Source.ScreenShare && t.kind === Track.Kind.Video
@@ -244,7 +242,7 @@ export class ParticipantModel {
 				isScreenStream: true,
 				streamId: screenStreamId,
 				isPinned: this.viewState?.isStreamPinned(screenStreamId) ?? false,
-				isFloating: false,
+				isFloating: this.viewState?.isStreamFloating(screenStreamId) ?? false,
 				isMutedForcibly: this.viewState?.isScreenStreamMuted(this.sid) ?? false,
 				zoom: this.resolveScreenZoom(screenStreamId)
 			});

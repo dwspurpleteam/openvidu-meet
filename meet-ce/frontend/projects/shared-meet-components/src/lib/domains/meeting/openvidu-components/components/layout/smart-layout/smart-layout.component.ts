@@ -12,6 +12,8 @@ import {
 	untracked,
 	viewChild
 } from '@angular/core';
+import { PluginWindow } from '../../../../components/plugin-iframe-window/plugin-iframe-window.component';
+import { StreamLayoutStateService } from '../../../services/layout/stream-layout-state.service';
 import { LayoutAdditionalElementsDirective } from '../../../directives/template/internals.directive';
 import { keepMosaicOrder, sameIdentityOrder, swapInPlace } from '../../../models/layout/smart-layout.model';
 import { ParticipantModel, ParticipantStream } from '../../../models/participant.model';
@@ -31,11 +33,14 @@ interface PersistentAudioEntry {
 @Component({
 	selector: 'ov-smart-layout',
 	imports: [BaseLayoutComponent, LayoutAdditionalElementsDirective, HiddenParticipantsIndicatorComponent],
-	templateUrl: './smart-layout.component.html'
+	templateUrl: './smart-layout.component.html',
+	host: { style: 'display: block; height: 100%; min-height: 0' }
 })
 export class SmartLayoutComponent implements OnDestroy {
 	readonly layoutService = inject(SmartLayoutService);
 	private readonly participantService = inject(ParticipantService);
+	private readonly windowState = inject(StreamLayoutStateService);
+	readonly pluginWindows = input<readonly PluginWindow[]>([]);
 
 	/** `*ovLayoutAdditionalElements` directives projected from the parent. */
 	readonly projectedAdditionalElements = contentChildren(LayoutAdditionalElementsDirective);
@@ -75,7 +80,9 @@ export class SmartLayoutComponent implements OnDestroy {
 	 */
 	private readonly displayedCameraOrder = computed<string[]>(
 		() => {
-			const allIds = this.remoteParticipants().map((p) => p.identity);
+			const allIds = this.remoteParticipants()
+				.filter((p) => !this.windowState.isStreamFloating(`camera-${p.identity}`))
+				.map((p) => p.identity);
 			const previous = untracked(() => this._displayedCameraOrder());
 
 			if (!this.isSmartLayoutActive()) return keepMosaicOrder(previous, allIds);
@@ -97,6 +104,7 @@ export class SmartLayoutComponent implements OnDestroy {
 	private readonly visibleState = computed(() => {
 		const order = this.displayedCameraOrder();
 		const allRemotes = this.remoteParticipants();
+		const gridIds = new Set<string>(order);
 		const targetIds = new Set<string>(order);
 		const streams: ParticipantStream[] = [];
 
@@ -111,32 +119,38 @@ export class SmartLayoutComponent implements OnDestroy {
 			if (p) streams.push(...p.streams());
 		}
 
-		// Hidden participants keep their screen share on screen without taking a camera slot.
 		for (const p of allRemotes) {
-			if (targetIds.has(p.identity) || !p.isScreenShareEnabled) continue;
+			if (gridIds.has(p.identity)) continue;
 
-			const screen = p.streams().find((s) => s.isScreenStream);
+			for (const stream of p.streams()) {
+				if (stream.isScreenStream || this.windowState.isStreamFloating(stream.streamId)) {
+					streams.push(stream);
+				}
 
-			if (screen) streams.push(screen);
+				if (stream.isCameraStream && this.windowState.windowPlacement(stream.streamId).mode === 'floating') {
+					targetIds.add(p.identity);
+				}
+			}
 		}
 
-		return { streams, targetIds };
+		return { streams, targetIds, gridIds };
 	});
 
 	/** Streams to pass to {@link BaseLayoutComponent} via `ovRemoteStreams`. */
 	readonly visibleRemoteStreams = computed(() => this.visibleState().streams);
 
 	/** Number of remote participants hidden from the layout (smart layout only). */
-	readonly hiddenParticipantsCount = computed(() => {
-		const total = this.remoteParticipants().length;
-		return Math.max(0, total - this.visibleState().targetIds.size);
-	});
+	readonly hiddenParticipantsCount = computed(() => this.hiddenParticipantNames().length);
 
 	/** Display names of the hidden remote participants, for tooltip rendering. */
 	readonly hiddenParticipantNames = computed(() => {
 		const { targetIds } = this.visibleState();
 		return this.remoteParticipants()
-			.filter((p) => !targetIds.has(p.identity))
+			.filter(
+				(p) =>
+					!targetIds.has(p.identity) &&
+					this.windowState.windowPlacement(`camera-${p.identity}`).mode !== 'minimized'
+			)
 			.map((p) => p.name ?? '');
 	});
 
@@ -154,7 +168,7 @@ export class SmartLayoutComponent implements OnDestroy {
 	readonly showTopBarHiddenParticipantsIndicator = computed(() => {
 		const hasPinnedParticipant =
 			!!this.localParticipant()?.isPinned || this.remoteParticipants().some((p) => p.isPinned);
-		const visibleCount = this.visibleState().targetIds.size;
+		const visibleCount = this.visibleState().gridIds.size;
 		return !hasPinnedParticipant && visibleCount < this.layoutService.MAX_VISIBLE_REMOTE_PARTICIPANTS_LIMIT;
 	});
 

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"
+		/>
+		<title>Meeting notes</title>
+		<style>
+			:root {
+				color-scheme: light dark;
+				font:
+					15px/1.5 system-ui,
+					sans-serif;
+			}
+			body {
+				margin: 0;
+				padding: 16px;
+			}
+			h1 {
+				margin: 0;
+				font-size: 20px;
+			}
+			p {
+				font-size: 13px;
+			}
+			label {
+				display: block;
+				margin-bottom: 8px;
+			}
+			textarea {
+				box-sizing: border-box;
+				width: 100%;
+				min-height: 160px;
+				padding: 8px;
+				font: inherit;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Meeting notes</h1>
+		<p>UI sample only. Notes stay in this window and are not shared or saved.</p>
+		<label for="notes">Personal notes</label>
+		<textarea id="notes" placeholder="Write your notes here"></textarea>
+	</body>
+</html>

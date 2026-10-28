@@ -126,7 +126,7 @@ export class IframeBridgeService {
 		}
 
 		// Reject anything not coming from the trusted parent origin (resolved at start).
-		if (event.origin !== this.parentDomain()) {
+		if (event.source !== window.parent || event.origin !== this.parentDomain()) {
 			this.log.w(`Ignoring message from untrusted origin: ${event.origin}`);
 			return;
 		}

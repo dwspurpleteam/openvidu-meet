@@ -19,7 +19,7 @@ const IDENTITY = 'participant-1';
 
 /** Simulate a message arriving from the host (the iframe's parent). */
 function postFromHost(data: unknown, origin = PARENT_ORIGIN): void {
-	window.dispatchEvent(new MessageEvent('message', { data, origin }));
+	window.dispatchEvent(new MessageEvent('message', { data, origin, source: window.parent }));
 }
 
 describe('IframeBridgeService', () => {
@@ -130,6 +130,25 @@ describe('IframeBridgeService', () => {
 			postFromHost({ command: EmbeddedCommandName.MEETING_END }, 'https://evil.example.com');
 
 			expect(commandService.meetingEnd).not.toHaveBeenCalled();
+		});
+
+		it('ignores a child frame even when it has the trusted origin', () => {
+			startBridge();
+			const child = document.createElement('iframe');
+			document.body.appendChild(child);
+
+			try {
+				window.dispatchEvent(
+					new MessageEvent('message', {
+						data: { command: EmbeddedCommandName.MEETING_LEAVE },
+						origin: PARENT_ORIGIN,
+						source: child.contentWindow
+					})
+				);
+				expect(commandService.meetingLeave).not.toHaveBeenCalled();
+			} finally {
+				child.remove();
+			}
 		});
 
 		it('forwards MEETING_LEAVE to the manager', () => {

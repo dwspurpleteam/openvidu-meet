@@ -51,6 +51,18 @@
 		"NO_TRACKS_PUBLISHED": "Deel audio of video om met opnemen te beginnen.",
 		"VIEW_RECORDINGS": "Opnames bekijken"
 	},
+	"WINDOW": {
+		"FLOAT": "Venster losmaken",
+		"REATTACH": "Terug naar raster",
+		"MINIMIZE": "Minimaliseren naar zijbalk",
+		"RESTORE": "Venster herstellen",
+		"MOVE": "Verplaatsen met pijltjestoetsen; Shift voor grotere stappen",
+		"RESIZE": "Formaat wijzigen met pijltjestoetsen; Shift voor grotere stappen",
+		"DOCK": "Geminimaliseerde vensters",
+		"CAMERA": "Camera",
+		"SCREEN": "Scherm",
+		"PLUGIN": "Plugin"
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Geluid dempen",
 		"UNMUTE_SOUND": "Geluid niet meer dempen",
@@ -287,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Ga naar de instellingen van je computer om de microfoon aan te zetten en het volume te verhogen",
 		"MUTED_SPEAKING": "Praat je? Je microfoon staat uit. Klik erop om hem aan te zetten.",
 		"CLOSE": "Sluiten"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Plugins laden…",
+		"LOAD_FAILED": "De plugincatalogus is niet beschikbaar.",
+		"RETRY": "Opnieuw proberen",
+		"AVAILABLE": "Beschikbare plugins",
+		"ACTIVE": "Actief in deze vergadering",
+		"NONE_ACTIVE": "Geen actieve plugins.",
+		"ACTIVATE": "Activeren",
+		"STOP": "Verbinding verbreken",
+		"UNAVAILABLE": "Niet beschikbaar",
+		"DISCONNECTED": "Pluginbediening vereist een verbinding en toestemming om gegevens te verzenden.",
+		"SYNC_FAILED": "De pluginstatus kon niet worden gesynchroniseerd.",
+		"STOP_FAILED": "De plugin kon niet worden losgekoppeld.",
+		"EMPTY_CATALOG": "Geen plugins in de catalogus.",
+		"STATUS": {
+			"AVAILABLE": "Beschikbaar",
+			"ACTIVATING": "Activeren…",
+			"ACTIVE": "Actief",
+			"FORBIDDEN": "Geen toestemming",
+			"REJECTED": "Activering geweigerd",
+			"ACTIVATION_FAILED": "Activering mislukt",
+			"STOPPING": "Verbinding verbreken…",
+			"STOPPED": "Losgekoppeld",
+			"DEGRADED": "Verminderde werking",
+			"SUSPENDING": "Onderbreken…",
+			"SUSPENDED": "Onderbroken",
+			"RESUMING": "Hervatten…",
+			"FAILED": "Mislukt"
+		}
 	}
 }

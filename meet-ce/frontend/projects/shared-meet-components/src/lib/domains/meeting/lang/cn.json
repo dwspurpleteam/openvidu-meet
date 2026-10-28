@@ -51,6 +51,18 @@
 		"NO_TRACKS_PUBLISHED": "请分享音频或视频以开始录制。",
 		"VIEW_RECORDINGS": "查看录像"
 	},
+	"WINDOW": {
+		"FLOAT": "分离窗口",
+		"REATTACH": "返回网格",
+		"MINIMIZE": "最小化到侧边栏",
+		"RESTORE": "恢复窗口",
+		"MOVE": "使用方向键移动，按住 Shift 加大步幅",
+		"RESIZE": "使用方向键调整大小，按住 Shift 加大步幅",
+		"DOCK": "已最小化的窗口",
+		"CAMERA": "摄像头",
+		"SCREEN": "屏幕",
+		"PLUGIN": "插件"
+	},
 	"STREAM": {
 		"MUTE_SOUND": "静音",
 		"UNMUTE_SOUND": "取消静音",
@@ -287,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "请前往电脑设置开启麦克风并调高音量",
 		"MUTED_SPEAKING": "你在说话吗？麦克风已关闭。点击它以开启。",
 		"CLOSE": "关闭"
+	},
+	"PLUGINS": {
+		"TITLE": "插件",
+		"LOADING": "正在加载插件…",
+		"LOAD_FAILED": "插件目录不可用。",
+		"RETRY": "重试",
+		"AVAILABLE": "可用插件",
+		"ACTIVE": "本次会议中已启用",
+		"NONE_ACTIVE": "没有已启用的插件。",
+		"ACTIVATE": "启用",
+		"STOP": "断开",
+		"UNAVAILABLE": "不可用",
+		"DISCONNECTED": "操作需要连接和数据发送权限。",
+		"SYNC_FAILED": "无法同步插件状态。",
+		"STOP_FAILED": "无法断开插件。",
+		"EMPTY_CATALOG": "目录中没有插件。",
+		"STATUS": {
+			"AVAILABLE": "可用",
+			"ACTIVATING": "正在启用…",
+			"ACTIVE": "已启用",
+			"FORBIDDEN": "无权限",
+			"REJECTED": "启用被拒绝",
+			"ACTIVATION_FAILED": "启用失败",
+			"STOPPING": "正在断开…",
+			"STOPPED": "已断开",
+			"DEGRADED": "性能下降",
+			"SUSPENDING": "正在暂停…",
+			"SUSPENDED": "已暂停",
+			"RESUMING": "正在恢复…",
+			"FAILED": "失败"
+		}
 	}
 }

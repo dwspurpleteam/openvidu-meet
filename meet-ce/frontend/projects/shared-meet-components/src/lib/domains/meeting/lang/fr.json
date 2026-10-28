@@ -51,6 +51,18 @@
 		"NO_TRACKS_PUBLISHED": "Partagez de l’audio ou de la vidéo pour commencer l’enregistrement.",
 		"VIEW_RECORDINGS": "Voir les enregistrements"
 	},
+	"WINDOW": {
+		"FLOAT": "Détacher la fenêtre",
+		"REATTACH": "Revenir à la grille",
+		"MINIMIZE": "Réduire dans la barre latérale",
+		"RESTORE": "Restaurer la fenêtre",
+		"MOVE": "Déplacer avec les flèches ; Maj pour de plus grands pas",
+		"RESIZE": "Redimensionner avec les flèches ; Maj pour de plus grands pas",
+		"DOCK": "Fenêtres réduites",
+		"CAMERA": "Caméra",
+		"SCREEN": "Écran",
+		"PLUGIN": "Plugin"
+	},
 	"STREAM": {
 		"MUTE_SOUND": "Couper le son",
 		"UNMUTE_SOUND": "Désactiver le son",
@@ -287,5 +299,36 @@
 		"SYSTEM_MUTED_DESC": "Accédez aux paramètres de votre ordinateur pour réactiver le micro et augmenter le volume",
 		"MUTED_SPEAKING": "Vous parlez ? Votre micro est désactivé. Cliquez dessus pour l'activer.",
 		"CLOSE": "Fermer"
+	},
+	"PLUGINS": {
+		"TITLE": "Plugins",
+		"LOADING": "Chargement des plugins…",
+		"LOAD_FAILED": "Le catalogue des plugins est indisponible.",
+		"RETRY": "Réessayer",
+		"AVAILABLE": "Plugins disponibles",
+		"ACTIVE": "Actifs dans cette réunion",
+		"NONE_ACTIVE": "Aucun plugin actif.",
+		"ACTIVATE": "Activer",
+		"STOP": "Déconnecter",
+		"UNAVAILABLE": "Indisponible",
+		"DISCONNECTED": "Les commandes nécessitent une connexion et la permission d’envoyer des données.",
+		"SYNC_FAILED": "L’état des plugins n’a pas pu être synchronisé.",
+		"STOP_FAILED": "Le plugin n’a pas pu être déconnecté.",
+		"EMPTY_CATALOG": "Aucun plugin dans le catalogue.",
+		"STATUS": {
+			"AVAILABLE": "Disponible",
+			"ACTIVATING": "Activation…",
+			"ACTIVE": "Actif",
+			"FORBIDDEN": "Permission refusée",
+			"REJECTED": "Activation refusée",
+			"ACTIVATION_FAILED": "Échec de l’activation",
+			"STOPPING": "Déconnexion…",
+			"STOPPED": "Déconnecté",
+			"DEGRADED": "Dégradé",
+			"SUSPENDING": "Suspension…",
+			"SUSPENDED": "Suspendu",
+			"RESUMING": "Reprise…",
+			"FAILED": "Échec"
+		}
 	}
 }

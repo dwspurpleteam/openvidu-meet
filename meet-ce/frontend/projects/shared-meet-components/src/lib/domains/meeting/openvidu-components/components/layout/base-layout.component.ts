@@ -1,4 +1,3 @@
-import { CdkDrag, CdkDragRelease } from '@angular/cdk/drag-drop';
 import { NgTemplateOutlet } from '@angular/common';
 import {
 	AfterViewInit,
@@ -7,73 +6,74 @@ import {
 	contentChild,
 	contentChildren,
 	effect,
+	ElementRef,
 	inject,
 	input,
 	OnDestroy,
-	signal,
 	TemplateRef,
 	untracked,
 	viewChild,
 	viewChildren,
 	ViewContainerRef
 } from '@angular/core';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MeetStorageService } from '../../../../../shared/services/storage.service';
+import {
+	PluginIframeWindowComponent,
+	PluginWindow
+} from '../../../components/plugin-iframe-window/plugin-iframe-window.component';
 import { LayoutAdditionalElementsDirective } from '../../directives/template/internals.directive';
 import { ParticipantStream } from '../../models/participant.model';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 import { MeetingUiConfigService } from '../../services/config/meeting-ui-config.service';
 import { SmartLayoutService } from '../../services/layout/smart-layout.service';
+import { StreamLayoutStateService } from '../../services/layout/stream-layout-state.service';
 import { ParticipantService } from '../../services/participant/participant.service';
 import { TemplateRegistryService } from '../../services/template/template-registry.service';
 import { StreamComponent } from '../stream/stream.component';
+import { WindowShellComponent } from './window-shell/window-shell.component';
 
-/**
- *
- * The **BaseLayoutComponent** is hosted inside of the {@link MeetingViewComponent}.
- * It is in charge of displaying the participants streams layout.
- */
 @Component({
 	selector: 'ov-base-layout',
-	imports: [CdkDrag, StreamComponent, NgTemplateOutlet],
+	imports: [
+		StreamComponent,
+		NgTemplateOutlet,
+		WindowShellComponent,
+		PluginIframeWindowComponent,
+		MatIconModule,
+		MatTooltipModule,
+		TranslatePipe
+	],
 	templateUrl: './base-layout.component.html',
-	styleUrls: ['./base-layout.component.scss']
+	styleUrls: ['./base-layout.component.scss'],
+	host: { style: 'display: block; height: 100%; min-height: 0' }
 })
 export class BaseLayoutComponent implements OnDestroy, AfterViewInit {
 	private readonly layoutService = inject(SmartLayoutService);
 	private readonly participantService = inject(ParticipantService);
 	private readonly directiveService = inject(MeetingUiConfigService);
 	private readonly templateRegistry = inject(TemplateRegistryService);
-
-	// ── View queries ─────────────────────────────────────────────────────────────
-
-	/** @ignore */
+	private readonly storage = inject(MeetStorageService);
+	readonly windowState = inject(StreamLayoutStateService);
 	readonly streamTemplateQuery = contentChild('stream', { read: TemplateRef });
-	/** @ignore */
 	readonly layoutAdditionalElementsDirectives = contentChildren(LayoutAdditionalElementsDirective);
-	/** @ignore */
 	readonly layoutContainer = viewChild('layout', { read: ViewContainerRef });
-	/** @ignore */
 	readonly defaultStreamTemplate = viewChild<TemplateRef<any>>('defaultStream');
-	/** @ignore */
-	readonly cdkDragQueries = viewChildren(CdkDrag);
-
-	// ── Inputs ───────────────────────────────────────────────────────────────────
-
-	/**
-	 * Additional elements passed by a parent orchestrator (e.g. {@link SmartLayoutComponent}).
-	 * Merged with content-projected `*ovLayoutAdditionalElements` directives.
-	 */
+	readonly windows = viewChildren(WindowShellComponent);
+	private readonly dock = viewChild<ElementRef<HTMLElement>>('dock');
 	readonly externalAdditionalElements = input<readonly LayoutAdditionalElementsDirective[]>([]);
-
-	// ── Computed streams ─────────────────────────────────────────────────────────
+	readonly pluginWindows = input<readonly PluginWindow[]>([]);
+	readonly controlsVisible = this.directiveService.streamVideoControlsSignal;
+	readonly dragging = computed(() => this.windows().some((window) => window.isDragging()));
 
 	readonly streamTemplate = computed(
 		() => this.templateRegistry.stream() ?? this.streamTemplateQuery() ?? this.defaultStreamTemplate()
 	);
-
 	private readonly allAdditionalElements = computed(() => [
 		...this.layoutAdditionalElementsDirectives(),
 		...this.externalAdditionalElements()
 	]);
-
 	readonly layoutAdditionalElementsTopTemplates = computed(() =>
 		this.allAdditionalElements()
 			.filter((d) => d.slot() === 'top')
@@ -91,493 +91,104 @@ export class BaseLayoutComponent implements OnDestroy, AfterViewInit {
 			.filter((d) => d.slot() === 'bottom')
 			.map((d) => d.template)
 	);
-
 	readonly localParticipant = this.participantService.localParticipant;
-
-	readonly remoteParticipants = computed(() => {
-		const directiveParticipants = this.directiveService.layoutRemoteParticipantsSignal();
-		return directiveParticipants !== undefined
-			? directiveParticipants
-			: this.participantService.remoteParticipants();
-	});
-
-	/** Pre-computed stream list injected by a parent (e.g. {@link SmartLayoutComponent}). */
+	readonly remoteParticipants = computed(
+		() => this.directiveService.layoutRemoteParticipantsSignal() ?? this.participantService.remoteParticipants()
+	);
 	readonly remoteStreamsOverride = input<ParticipantStream[] | undefined>(undefined, { alias: 'ovRemoteStreams' });
-
 	readonly remoteStreams = computed(
 		() => this.remoteStreamsOverride() ?? this.remoteParticipants().flatMap((p) => p.streams())
 	);
-
 	readonly remoteCameraStreams = computed(() => this.remoteStreams().filter((s) => !s.isScreenStream));
 	readonly remoteScreenStreams = computed(() => this.remoteStreams().filter((s) => s.isScreenStream));
+	readonly orderedRemoteStreams = computed(() => [...this.remoteCameraStreams(), ...this.remoteScreenStreams()]);
+	private readonly allStreams = computed(() => [
+		...(this.localParticipant()?.streams() ?? []),
+		...this.remoteStreams()
+	]);
+	readonly minimizedWindows = computed(() =>
+		[
+			...this.allStreams().map((stream) => ({
+				id: stream.streamId,
+				title: stream.participant.name ?? '',
+				kind: stream.isScreenStream ? 'WINDOW.SCREEN' : 'WINDOW.CAMERA',
+				icon: stream.isScreenStream ? 'screen_share' : 'person'
+			})),
+			...this.pluginWindows().map((plugin) => ({ ...plugin, kind: 'WINDOW.PLUGIN', icon: 'extension' }))
+		].filter((window) => this.windowState.windowPlacement(window.id).mode === 'minimized')
+	);
 
-	// ── Drag position signal ─────────────────────────────────────────────────────
-
-	/**
-	 * Constant zero offset bound to non-floating local streams
-	 */
-	readonly ZERO_DRAG_POSITION = { x: 0, y: 0 } as const;
-
-	/** Tracked drag offset; kept in sync so CD never resets an in-flight or post-drag position. */
-	readonly currentDragPosition = signal<{ x: number; y: number }>(this.ZERO_DRAG_POSITION);
-
-	// ── Resize constants ─────────────────────────────────────────────────────────
-
-	private readonly ASPECT_RATIO = 218 / 123;
-	private readonly MIN_RESIZE_WIDTH = 160;
-	private readonly MIN_CORNER_MARGIN = 0;
-	/** Gap kept between the floating tile and the right edge of the layout. */
-	private readonly RIGHT_EDGE_MARGIN = 5;
-	/** Duration of the grid-slot → bottom-right glide when the local tile starts floating. */
-	private readonly FLOAT_GLIDE_MS = 250;
-	/** Deceleration easing for the float glide (fast start, soft landing). */
-	private readonly FLOAT_GLIDE_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
-
-	// ── Private observer / timeout state ─────────────────────────────────────────
-
-	private resizeObserver: ResizeObserver | undefined;
-	private resizeTimeout: ReturnType<typeof setTimeout> | undefined;
-	private mutationObserver: MutationObserver | undefined;
-	private mutationTimeout: ReturnType<typeof setTimeout> | undefined;
-
-	// ── Drag tracking ─────────────────────────────────────────────────────────────
-
-	private wasLocalFloating = false;
-	private lastLayoutWidth = 0;
-	private lastLayoutHeight = 0;
-	/**
-	 * True while the just-floated tile is gliding to the bottom-right corner (see
-	 * {@link glideFloatingTileToBottomRight}) and until the final snap. Rects read during this
-	 * window are mid-animation values; the ResizeObserver repositioning must not consume them or
-	 * it redirects the glide (visible as the tile "trembling" toward the corner).
-	 */
-	private floatPlacementSettling = false;
-	private floatPlacementTimeout: ReturnType<typeof setTimeout> | undefined;
-
-	// ── Resize interaction state ─────────────────────────────────────────────────
-
-	private isResizing = false;
-	private resizeDirection = '';
-	private resizeStartClientX = 0;
-	private resizeStartWidth = 0;
-	private resizeMaxWidth = 0;
-	private resizeDragStartPos: { x: number; y: number } = this.ZERO_DRAG_POSITION;
-	/** Cached CDK drag instance for the duration of a resize gesture (avoids per-event DOM lookup). */
-	private resizingDrag: CdkDrag | undefined;
-
-	private readonly boundResizeMove = this.onResizeMove.bind(this);
-	private readonly boundResizeEnd = this.onResizeEnd.bind(this);
-
-	// ── Reactive effect ───────────────────────────────────────────────────────────
-
-	private readonly localStreams = computed(() => this.localParticipant()?.streams() ?? []);
-
-	private readonly isLocalFloating = computed(() => this.localStreams().some((stream) => stream.isFloating));
-
-	/**
-	 * Everything about the streams on screen that can move a tile: which tiles exist, and which of
-	 * them floats or is pinned. The layout tracks this rather than the stream arrays themselves,
-	 * whose identity also changes when participant state the layout cannot act on churns — speaker
-	 * priority alone rebuilt them about twice a second while anyone talked.
-	 */
-	private readonly layoutShape = computed(() => {
-		const describe = (stream: ParticipantStream) =>
-			[
-				stream.streamId,
-				// A tile showing video and the same tile showing the avatar are laid out from
-				// different aspect ratios, so this belongs to the shape.
-				stream.videoTrack?.track && !stream.videoTrack.isMuted ? 'video' : 'poster',
-				stream.isFloating ? 'floating' : '',
-				stream.isPinned ? 'pinned' : ''
-			].join(':');
-
-		return [...this.localStreams(), ...this.remoteStreams()].map(describe).join('|');
-	});
-
-	private readonly reactiveStateEffect = effect(() => {
+	private resizeObserver?: ResizeObserver;
+	private mutationObserver?: MutationObserver;
+	private readonly layoutShape = computed(() =>
+		[
+			...this.allStreams().map((stream) =>
+				[
+					stream.streamId,
+					stream.videoTrack?.track && !stream.videoTrack.isMuted ? 'video' : 'poster',
+					stream.isPinned,
+					this.windowState.windowPlacement(stream.streamId).mode
+				].join(':')
+			),
+			...this.pluginWindows().map((plugin) => `${plugin.id}:${this.windowState.windowPlacement(plugin.id).mode}`)
+		].join('|')
+	);
+	private readonly layoutEffect = effect(() => {
 		this.layoutShape();
-		const isLocalFloating = this.isLocalFloating();
-
-		untracked(() => this.applyFloatingTransition(isLocalFloating));
+		untracked(() => this.layoutService.update());
 	});
-
-	/**
-	 * Moves the local tile in or out of its floating position and re-runs the layout. Called with no
-	 * reactive context: the DOM reads and the layout options below would otherwise subscribe this
-	 * component's effect to signals that say nothing about where the tiles go.
-	 */
-	private applyFloatingTransition(isLocalFloating: boolean): void {
-		if (this.wasLocalFloating && !isLocalFloating) {
-			// Restore from floating: clear CSS resize state, reset drag offset, reposition.
-			this.floatPlacementSettling = false;
-			clearTimeout(this.floatPlacementTimeout);
-			queueMicrotask(() => {
-				const el = this.getLocalCameraDrag()?.element.nativeElement as HTMLElement | undefined;
-				el?.style.removeProperty('--ov-min-w');
-				el?.style.removeProperty('--ov-min-h');
-				// Drop the float-time inline `transition: none` so the grid's own transition
-				// animates the tile back into the layout.
-				el?.style.removeProperty('transition');
-				this.resetDragPosition();
-				this.layoutService.update();
-			});
-		} else if (!this.wasLocalFloating && isLocalFloating) {
-			// Just became floating: move to the bottom-right corner to avoid overlapping the main layout.
-			this.floatPlacementSettling = true;
-			// FLIP glide: capture the tile's grid rect now — effects run before the template applies
-			// the .OV_floating class, so this is the pre-float geometry — then place the tile at the
-			// corner and glide only the CDK transform (compositor-driven; see glideFloatingTile...).
-			const gridRect = this.getLocalCameraDrag()?.element.nativeElement.getBoundingClientRect();
-			requestAnimationFrame(() => this.glideFloatingTileToBottomRight(gridRect));
-			clearTimeout(this.floatPlacementTimeout);
-			this.floatPlacementTimeout = setTimeout(() => {
-				// Final correction with transitions off: the container reflows while the glide runs
-				// (its content height collapses as the tile leaves the grid), so snap the last few
-				// pixels and hand control back to the resize/drag handlers.
-				const el = this.getFloatingLocalDrag()?.element.nativeElement as HTMLElement | undefined;
-				el?.style.setProperty('transition', 'none');
-				this.moveStreamToBottomRight();
-				this.floatPlacementSettling = false;
-			}, this.FLOAT_GLIDE_MS + 50);
-		}
-
-		this.wasLocalFloating = isLocalFloating;
-		this.layoutService.update();
-	}
-
-	// ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 	ngAfterViewInit(): void {
-		const container = this.layoutContainer()?.element?.nativeElement;
+		const container = this.layoutContainer()?.element.nativeElement as HTMLElement | undefined;
 
 		if (!container) return;
 
 		this.layoutService.initialize(container);
-		const rect = container.getBoundingClientRect();
-		this.lastLayoutWidth = rect.width;
-		this.lastLayoutHeight = rect.height;
-		this.listenToLayoutDomChanges(container);
-		this.listenToResizeLayout(container);
+		this.resizeObserver = new ResizeObserver(() => {
+			this.layoutService.update();
+			this.windows().forEach((window) => window.contain());
+		});
+		this.resizeObserver.observe(container);
+		this.mutationObserver = new MutationObserver(() => this.layoutService.update());
+		this.mutationObserver.observe(container, { childList: true });
 	}
 
 	ngOnDestroy(): void {
 		this.resizeObserver?.disconnect();
 		this.mutationObserver?.disconnect();
-		clearTimeout(this.resizeTimeout);
-		clearTimeout(this.mutationTimeout);
-		clearTimeout(this.floatPlacementTimeout);
-		document.removeEventListener('pointermove', this.boundResizeMove);
-		document.removeEventListener('pointerup', this.boundResizeEnd);
 		this.layoutService.clear();
 	}
 
-	// ── Public helpers ────────────────────────────────────────────────────────────
-
-	/**
-	 * Track-by function for `@for` loops over {@link ParticipantStream} items.
-	 * Using a stable `identity-streamId` key ensures the `StreamComponent` instance is
-	 * reused across track subscription cycles, preventing flicker from DOM recreation.
-	 */
 	trackParticipantElement(_: number, stream: ParticipantStream): string {
 		return `${stream.participant.identity}-${stream.streamId}`;
 	}
 
-	/** Called from the template when the user drops a local tile, floating or not. */
-	onDragReleased(event: CdkDragRelease): void {
-		if (!this.isLocalFloating()) return;
-
-		// Sync signal with the actual post-drag transform so CD never resets it.
-		this.setDragPosition(this.getActualDragPosition(event.source.element.nativeElement), event.source);
-	}
-
-	/** Called from the template when the user presses on a corner resize handle. */
-	onResizeStart(event: PointerEvent, direction: string): void {
-		event.preventDefault();
-		event.stopPropagation();
-
-		this.resizingDrag = this.getFloatingLocalDrag();
-
-		if (!this.resizingDrag) return;
-
-		this.isResizing = true;
-		this.resizeDirection = direction;
-		this.resizeStartClientX = event.clientX;
-		this.resizeStartWidth = this.resizingDrag.element.nativeElement.getBoundingClientRect().width;
-		const container = this.layoutContainer()?.element?.nativeElement;
-		this.resizeMaxWidth = container ? container.getBoundingClientRect().width * 0.9 : 800;
-		this.resizeDragStartPos = { ...this.currentDragPosition() };
-
-		document.addEventListener('pointermove', this.boundResizeMove);
-		document.addEventListener('pointerup', this.boundResizeEnd);
-	}
-
-	// ── Private: resize handlers ──────────────────────────────────────────────────
-
-	private onResizeMove(event: PointerEvent): void {
-		if (!this.isResizing || !this.resizingDrag) return;
-
-		const deltaX = event.clientX - this.resizeStartClientX;
-		const rawWidth =
-			this.resizeDirection === 'se' || this.resizeDirection === 'ne'
-				? this.resizeStartWidth + deltaX
-				: this.resizeStartWidth - deltaX;
-
-		const newWidth = Math.max(this.MIN_RESIZE_WIDTH, Math.min(this.resizeMaxWidth, rawWidth));
-		const newHeight = newWidth / this.ASPECT_RATIO;
-		const widthChange = newWidth - this.resizeStartWidth;
-
-		let newDragX = this.resizeDragStartPos.x;
-		let newDragY = this.resizeDragStartPos.y;
-
-		// Anchor the opposite edge by compensating the drag position.
-		if (this.resizeDirection === 'sw' || this.resizeDirection === 'nw') {
-			newDragX = this.resizeDragStartPos.x - widthChange;
+	onPlacementChanged(stream?: ParticipantStream): void {
+		if (stream?.participant.isLocal && stream.isCameraStream) {
+			this.storage.setLocalTileFloating(this.windowState.isStreamFloating(stream.streamId));
 		}
 
-		if (this.resizeDirection === 'ne' || this.resizeDirection === 'nw') {
-			newDragY = this.resizeDragStartPos.y - (newHeight - this.resizeStartWidth / this.ASPECT_RATIO);
+		this.layoutService.update();
+	}
+
+	onWindowDropped(event: { id: string; point: { x: number; y: number } }): void {
+		const rect = this.dock()?.nativeElement.getBoundingClientRect();
+
+		if (
+			rect &&
+			event.point.x >= rect.left &&
+			event.point.x <= rect.right &&
+			event.point.y >= rect.top &&
+			event.point.y <= rect.bottom
+		) {
+			this.windowState.setWindowMode(event.id, 'minimized');
+			this.layoutService.update();
 		}
-
-		const el = this.resizingDrag.element.nativeElement as HTMLElement;
-		el.style.setProperty('--ov-min-w', `${newWidth}px`);
-		el.style.setProperty('--ov-min-h', `${newHeight}px`);
-		this.setDragPosition({ x: newDragX, y: newDragY }, this.resizingDrag);
 	}
 
-	private onResizeEnd(_event: PointerEvent): void {
-		if (!this.isResizing) return;
-
-		this.isResizing = false;
-		this.resizingDrag = undefined;
-		document.removeEventListener('pointermove', this.boundResizeMove);
-		document.removeEventListener('pointerup', this.boundResizeEnd);
-	}
-
-	// ── Private: layout observer setup ───────────────────────────────────────────
-
-	private listenToLayoutDomChanges(container: HTMLElement): void {
-		this.mutationObserver = new MutationObserver((mutations) => {
-			const hasStructuralChanges = mutations.some((m) => m.addedNodes.length > 0 || m.removedNodes.length > 0);
-
-			if (!hasStructuralChanges) return;
-
-			clearTimeout(this.mutationTimeout);
-			this.mutationTimeout = setTimeout(() => this.layoutService.update(), 0);
-		});
-
-		// Direct children only: those are the tiles the layout positions, so nodes coming and going
-		// inside a tile (the audio wave of whoever is talking, a badge) are not a layout change.
-		this.mutationObserver.observe(container, { childList: true });
-	}
-
-	/**
-	 * Sets up a ResizeObserver on the layout container to detect size changes and update the layout accordingly.
-	 * Also re-places the floating local participant stream when the layout size changes (window
-	 * resize, panel open/close), keeping it in the same relative zone and always visible.
-	 * The resize handling is debounced to avoid excessive layout updates during rapid size changes.
-	 */
-	private listenToResizeLayout(container: HTMLElement): void {
-		this.resizeObserver = new ResizeObserver((entries) => {
-			const { width: parentWidth, height: parentHeight } = entries[0].contentRect;
-
-			clearTimeout(this.resizeTimeout);
-			this.resizeTimeout = setTimeout(() => {
-				const sizeChanged =
-					Math.abs(this.lastLayoutWidth - parentWidth) > 1 ||
-					Math.abs(this.lastLayoutHeight - parentHeight) > 1;
-
-				if (sizeChanged) {
-					this.layoutService.update();
-
-					// While the float glide is settling, rects are mid-animation — skip the
-					// repositioning entirely (the pending final snap already lands the tile).
-					if (!this.floatPlacementSettling) {
-						this.repositionFloatingStream(parentWidth, parentHeight);
-					}
-				}
-
-				this.lastLayoutWidth = parentWidth;
-				this.lastLayoutHeight = parentHeight;
-			}, 100);
-		});
-
-		this.resizeObserver.observe(container);
-	}
-
-	// ── Private: drag helpers ─────────────────────────────────────────────────────
-
-	/**
-	 * Returns CDK drag instances for all local participant elements.
-	 */
-	private localParticipantDrags(): CdkDrag[] {
-		return this.cdkDragQueries().filter((drag) =>
-			(drag.element.nativeElement as HTMLElement).classList.contains('local_participant')
-		);
-	}
-
-	/**
-	 * The local camera tile whatever its state. Identified by role rather than by the `OV_floating`
-	 * class because {@link applyFloatingTransition} runs before the template applies it.
-	 */
-	private getLocalCameraDrag(): CdkDrag | undefined {
-		return this.cdkDragQueries().find((drag) => {
-			const el = drag.element.nativeElement as HTMLElement;
-			return el.classList.contains('local_participant') && !el.classList.contains('OV_screen');
-		});
-	}
-
-	/**
-	 * The local camera tile while it floats, and nothing once it is docked. Every caller places the
-	 * tile from a deferred callback (an animation frame, a timer, a debounce, a pointer release);
-	 * a window that is not being rendered holds those until it is shown again, which can be after
-	 * the tile has docked, and a placement then pushes a tile the layout owns out of the viewport.
-	 */
-	private getFloatingLocalDrag(): CdkDrag | undefined {
-		return this.isLocalFloating() ? this.getLocalCameraDrag() : undefined;
-	}
-
-	/**
-	 * Updates the CDK drag position imperatively and keeps `currentDragPosition` in sync
-	 * so that Angular's CD binding `[cdkDragFreeDragPosition]="currentDragPosition()"` never
-	 * resets the position to a stale value.
-	 */
-	private setDragPosition(pos: { x: number; y: number }, drag: CdkDrag | undefined): void {
-		drag?.setFreeDragPosition(pos);
-		this.currentDragPosition.set(pos);
-	}
-
-	/**
-	 * Re-places the floating tile after the layout viewport changes size. The tile keeps its
-	 * relative position within the movable range — a tile the user parked somewhere stays in
-	 * that zone, and one flush against an edge (the default bottom-right corner) stays flush —
-	 * computed from `currentDragPosition` (the last SET target, immune to mid-animation rects)
-	 * and the previous layout size. A containment pass then covers any residual overflow.
-	 */
-	private repositionFloatingStream(
-		parentWidth: number,
-		parentHeight: number,
-		drag = this.getFloatingLocalDrag()
-	): void {
-		if (!drag) return;
-
-		const { width, height } = drag.element.nativeElement.getBoundingClientRect();
-		const prev = this.currentDragPosition();
-		const prevRangeX = this.lastLayoutWidth - width;
-		const prevRangeY = this.lastLayoutHeight - height;
-		const x = prevRangeX > 0 ? (prev.x / prevRangeX) * Math.max(parentWidth - width, 0) : prev.x;
-		const y = prevRangeY > 0 ? (prev.y / prevRangeY) * Math.max(parentHeight - height, 0) : prev.y;
-
-		this.setDragPosition({ x, y }, drag);
-		this.containStreamWithinDragBoundary(drag);
-	}
-
-	/**
-	 * Pulls the floating tile back inside the drag boundary after the layout viewport shrinks
-	 * (window un-maximize, browser resize). `cdkDragBoundary` only constrains active pointer
-	 * drags, so a programmatically placed tile parked near the old bottom/right edge would
-	 * otherwise stay outside the new bounds — invisible and unreachable.
-	 */
-	private containStreamWithinDragBoundary(drag: CdkDrag | undefined): void {
-		const el = drag?.element.nativeElement as HTMLElement | undefined;
-
-		if (!drag || !el) return;
-
-		const boundary = el.closest('#layout-container') ?? this.layoutContainer()?.element?.nativeElement;
-
-		if (!boundary) return;
-
-		const tile = el.getBoundingClientRect();
-		const bounds = boundary.getBoundingClientRect();
-		// Right/bottom corrections first, left/top last, so a tile larger than the boundary keeps
-		// its top-left corner (where the drag surface and controls live) reachable.
-		const dx = Math.max(bounds.left - tile.left, Math.min(0, bounds.right - tile.right));
-		const dy = Math.max(bounds.top - tile.top, Math.min(0, bounds.bottom - tile.bottom));
-
-		if (dx === 0 && dy === 0) return;
-
-		const { x, y } = this.currentDragPosition();
-		this.setDragPosition({ x: x + dx, y: y + dy }, drag);
-	}
-
-	/**
-	 * Animates the just-floated tile from its grid slot to the bottom-right corner using the FLIP
-	 * technique on the CDK drag transform only.
-	 *
-	 * Why not let the grid's `transition: all 0.1s linear` handle it (previous behavior):
-	 * that eased top/left/width/height AND the transform at once — two opposing coordinate-system
-	 * animations that mostly cancel out, forcing a reflow on every frame (dropped frames, visible
-	 * stutter) and easing every later programmatic placement and pointer drag. Instead: transitions
-	 * are turned OFF inline (they stay off while the tile floats, so dragging/resizing is 1:1), the
-	 * tile is placed at its final corner instantly, and only the compositor-friendly `transform`
-	 * glides from the old grid slot (center-anchored) to the corner with a deceleration curve.
-	 */
-	private glideFloatingTileToBottomRight(gridRect: DOMRect | undefined): void {
-		const drag = this.getFloatingLocalDrag();
-		const el = drag?.element.nativeElement as HTMLElement | undefined;
-
-		if (!drag || !el) return;
-
-		// Turn transitions off before any placement.
-		el.style.setProperty('transition', 'none');
-		this.moveStreamToBottomRight(drag);
-
-		if (!gridRect) return;
-
-		const target = this.currentDragPosition();
-		const cornerRect = el.getBoundingClientRect();
-		// Center-anchored FLIP delta: the (now small) tile starts centered on the old grid slot.
-		const dx = gridRect.x + gridRect.width / 2 - (cornerRect.x + cornerRect.width / 2);
-		const dy = gridRect.y + gridRect.height / 2 - (cornerRect.y + cornerRect.height / 2);
-
-		if (dx === 0 && dy === 0) return;
-
-		// Start frame: back over the grid slot. Applied straight on CDK (not via setDragPosition)
-		// so currentDragPosition keeps holding the real target for any concurrent handler.
-		drag.setFreeDragPosition({ x: target.x + dx, y: target.y + dy });
-		void el.offsetWidth; // flush styles so the start position is committed before the glide
-
-		el.style.setProperty('transition', `transform ${this.FLOAT_GLIDE_MS}ms ${this.FLOAT_GLIDE_EASING}`);
-		drag.setFreeDragPosition(target);
-	}
-
-	private moveStreamToBottomRight(drag = this.getFloatingLocalDrag()): void {
-		if (!drag) return;
-
-		const container = this.layoutContainer()?.element?.nativeElement as HTMLElement | undefined;
-
-		if (!container) return;
-
-		// Use the known minimum floating size (CSS constants) rather than reading the DOM:
-		// at the moment the effect fires the .OV_floating class may not yet be painted,
-		// so getBoundingClientRect would still report the layout-driven size.
-		const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
-		const floatingWidth = this.MIN_RESIZE_WIDTH;
-		const floatingHeight = this.MIN_RESIZE_WIDTH / this.ASPECT_RATIO;
-		this.setDragPosition(
-			{
-				x: containerWidth - floatingWidth - this.RIGHT_EDGE_MARGIN,
-				y: containerHeight - floatingHeight - this.MIN_CORNER_MARGIN
-			},
-			drag
-		);
-	}
-
-	private resetDragPosition(): void {
-		for (const drag of this.localParticipantDrags()) {
-			drag.reset();
-			drag.setFreeDragPosition(this.ZERO_DRAG_POSITION);
-		}
-
-		this.currentDragPosition.set(this.ZERO_DRAG_POSITION);
-	}
-
-	/** Reads the actual CDK transform from the element's computed style. */
-	private getActualDragPosition(element: HTMLElement): { x: number; y: number } {
-		const transformStr = window.getComputedStyle(element).transform;
-
-		if (!transformStr || transformStr === 'none') return this.ZERO_DRAG_POSITION;
-
-		const { e, f } = new DOMMatrix(transformStr);
-		return { x: e, y: f };
+	restoreWindow(id: string): void {
+		this.windowState.setWindowMode(id, 'floating');
+		this.windowState.activeWindow.set(id);
+		this.layoutService.update();
 	}
 }

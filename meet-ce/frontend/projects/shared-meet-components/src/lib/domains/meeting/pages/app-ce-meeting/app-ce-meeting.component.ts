@@ -9,6 +9,7 @@ import { MeetingToolbarExtraButtonsComponent } from '../../customization/meeting
 import { MeetingToolbarLeaveButtonComponent } from '../../customization/meeting-toolbar-leave-button/meeting-toolbar-leave-button.component';
 import { MeetingToolbarMoreOptionsMenuComponent } from '../../customization/meeting-toolbar-more-options-menu/meeting-toolbar-more-options-menu.component';
 import { MeetingWaitingPanelComponent } from '../../customization/meeting-waiting-panel/meeting-waiting-panel.component';
+import { MeetingPluginsPanelComponent } from '../../customization/meeting-plugins-panel/meeting-plugins-panel.component';
 import { MeetingComponent } from '../meeting/meeting.component';
 
 @Component({
@@ -22,6 +23,7 @@ import { MeetingComponent } from '../meeting/meeting.component';
 		MeetingParticipantItemComponent,
 		MeetingParticipantsPanelActionsComponent,
 		MeetingCustomLayoutComponent,
+		MeetingPluginsPanelComponent,
 		MeetingToolbarMoreOptionsMenuComponent,
 		MeetingSettingsExtensionsComponent
 	],
@@ -36,6 +38,7 @@ import { MeetingComponent } from '../meeting/meeting.component';
 			<ov-meeting-participants-panel-actions />
 			<ov-meeting-settings-extensions />
 			<ov-meeting-custom-layout />
+			<ov-meeting-plugins-panel />
 		</ov-meeting>
 	`,
 	styles: ''

@@ -1,3 +1,23 @@
+@if (isMobile()) {
+	<button mat-menu-item type="button" data-testid="plugins-button" (click)="pluginPanels.togglePanel('plugins')">
+		<mat-icon>extension</mat-icon>
+		<span>{{ 'PLUGINS.TITLE' | translate }}</span>
+	</button>
+} @else {
+	<button
+		mat-icon-button
+		type="button"
+		data-testid="plugins-button"
+		[class.active]="pluginsOpened()"
+		[attr.aria-label]="'PLUGINS.TITLE' | translate"
+		[attr.aria-expanded]="pluginsOpened()"
+		[matTooltip]="'PLUGINS.TITLE' | translate"
+		(click)="pluginPanels.togglePanel('plugins')"
+	>
+		<mat-icon>extension</mat-icon>
+	</button>
+}
+
 <!-- Captions button -->
 @if (showCaptionsButton()) {
 	@if (isMobile()) {
@@ -14,7 +34,9 @@
 				@if (isCaptionsButtonDisabled()) {
 					{{ 'CAPTIONS.DISABLED_BY_ADMIN_TEXT' | translate }}
 				} @else {
-					{{ areCaptionsEnabledByUser() ? ('CAPTIONS.DISABLE' | translate) : ('CAPTIONS.ENABLE' | translate) }}
+					{{
+						areCaptionsEnabledByUser() ? ('CAPTIONS.DISABLE' | translate) : ('CAPTIONS.ENABLE' | translate)
+					}}
 				}
 			</span>
 		</button>

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'none'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'"
+		/>
+		<title>Demo transcript</title>
+		<style>
+			:root {
+				color-scheme: light dark;
+				font:
+					15px/1.5 system-ui,
+					sans-serif;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				padding: 16px;
+				color: #202938;
+				background: #f5f7fa;
+			}
+			h1 {
+				margin: 0;
+				font-size: clamp(18px, 4vw, 28px);
+			}
+			.notice {
+				margin: 4px 0 16px;
+				color: #566275;
+			}
+			main {
+				display: grid;
+				gap: 16px;
+			}
+			article,
+			aside {
+				padding: 16px;
+				border: 1px solid #cbd3df;
+				border-radius: 8px;
+				background: #fff;
+				min-width: 0;
+			}
+			p {
+				margin: 0 0 16px;
+				overflow-wrap: anywhere;
+			}
+			p:last-child {
+				margin: 0;
+			}
+			strong,
+			time {
+				display: block;
+			}
+			time {
+				color: #566275;
+				font-size: 12px;
+			}
+			label {
+				display: block;
+				margin-bottom: 8px;
+				font-weight: 600;
+			}
+			textarea {
+				width: 100%;
+				min-height: 120px;
+				padding: 8px;
+				font: inherit;
+				border: 1px solid #778398;
+				border-radius: 4px;
+				color: inherit;
+				background: inherit;
+				resize: vertical;
+			}
+			@media (min-width: 600px) {
+				main {
+					grid-template-columns: 2fr 1fr;
+				}
+				aside {
+					align-self: start;
+				}
+			}
+			@media (max-width: 260px) {
+				body {
+					padding: 8px;
+				}
+				article,
+				aside {
+					padding: 8px;
+				}
+			}
+			@media (prefers-color-scheme: dark) {
+				body {
+					color: #e5eaf2;
+					background: #151b25;
+				}
+				article,
+				aside {
+					background: #202938;
+					border-color: #526176;
+				}
+				.notice,
+				time {
+					color: #bbc7d8;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Demo transcript</h1>
+		<p class="notice">Local UI fixture — no audio is captured or transcribed.</p>
+		<main>
+			<article aria-label="Transcript">
+				<p>
+					<time>00:01</time><strong>Alex</strong>Welcome! This text demonstrates a plugin frontend inside its
+					own iframe.
+				</p>
+				<p>
+					<time>00:08</time><strong>Sam</strong>Detach and resize this window. The transcript and notes adapt
+					to the available space.
+				</p>
+				<p>
+					<time>00:15</time><strong>Alex</strong>Minimize it to the side dock, then restore it. Your notes and
+					scroll position stay here.
+				</p>
+			</article>
+			<aside>
+				<label for="notes">Your notes</label>
+				<textarea id="notes" placeholder="These notes survive window placement changes."></textarea>
+			</aside>
+		</main>
+	</body>
+</html>

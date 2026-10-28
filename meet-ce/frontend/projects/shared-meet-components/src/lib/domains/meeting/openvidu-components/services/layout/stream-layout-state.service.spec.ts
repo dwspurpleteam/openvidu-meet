@@ -178,6 +178,68 @@ describe('StreamLayoutStateService', () => {
 		});
 	});
 
+	describe('window placement', () => {
+		it('keeps independent camera, screen and plugin placement and restores geometry', () => {
+			fake.publications = [fakePublication('TR_screen', Track.Kind.Video, Track.Source.ScreenShare)];
+			participant.bump();
+			const rect = { x: 10, y: 20, width: 350, height: 260 };
+			service.setWindowMode('TR_screen', 'floating');
+			service.setWindowRect('TR_screen', rect);
+			service.setWindowMode('TR_screen', 'minimized');
+			service.setWindowMode('plugin:demo-1', 'floating');
+
+			expect(screenStream()?.isFloating).toBeTrue();
+			expect(cameraStream().isFloating).toBeFalse();
+			service.setWindowMode('TR_screen', 'floating');
+			expect(service.windowPlacement('TR_screen').rect).toEqual(rect);
+			expect(service.windowPlacement('plugin:demo-1').mode).toBe('floating');
+		});
+
+		it('unpins on detach, returns to grid on explicit pin and ignores automatic pin outside the grid', () => {
+			const id = cameraStream().streamId;
+			service.toggleStreamPinned(id);
+			service.setWindowMode(id, 'floating');
+			expect(service.isStreamPinned(id)).toBeFalse();
+			service.pinStreamIfInGrid(id);
+			expect(service.windowPlacement(id).mode).toBe('floating');
+			service.toggleStreamPinned(id);
+			expect(service.windowPlacement(id).mode).toBe('grid');
+			expect(service.isStreamPinned(id)).toBeTrue();
+		});
+
+		it('auto-floats the camera independently of a floating screen share', () => {
+			fake.publications = [fakePublication('TR_screen', Track.Kind.Video, Track.Source.ScreenShare)];
+			participant.bump();
+			service.setWindowMode('TR_screen', 'floating');
+			service.floatLocalCameraVideo(participant);
+			expect(cameraStream().isFloating).toBeTrue();
+			service.dockLocalCameraVideo(participant);
+			expect(cameraStream().isFloating).toBeFalse();
+			expect(screenStream()?.isFloating).toBeTrue();
+		});
+
+		it('does not restore a minimized local avatar on automatic participant transitions', () => {
+			const id = cameraStream().streamId;
+			service.setWindowMode(id, 'minimized');
+			service.floatLocalCameraVideo(participant);
+			service.dockLocalCameraVideo(participant);
+			expect(service.windowPlacement(id).mode).toBe('minimized');
+		});
+
+		it('clears placement, geometry and active window on participant departure and teardown', () => {
+			const id = cameraStream().streamId;
+			service.setWindowMode(id, 'floating');
+			service.setWindowRect(id, { x: 1, y: 2, width: 300, height: 200 });
+			service.activeWindow.set(id);
+			service.clearParticipantViewState(participant);
+			expect(service.windowPlacement(id)).toEqual({ mode: 'grid' });
+			expect(service.activeWindow()).toBeUndefined();
+			service.setWindowMode('plugin:demo-1', 'minimized');
+			service.clearAllViewState();
+			expect(service.windowPlacement('plugin:demo-1')).toEqual({ mode: 'grid' });
+		});
+	});
+
 	describe('setLastScreenPinned', () => {
 		it('pins the most recently published screen share', () => {
 			service.recordScreenSharePublication('TR_screen_old', 1000);
