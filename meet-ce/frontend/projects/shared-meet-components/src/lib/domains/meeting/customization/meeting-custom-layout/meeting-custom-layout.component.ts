@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, OnDestroy, untracked } from '@angu
 import { PluginWindow } from '../../components/plugin-iframe-window/plugin-iframe-window.component';
 import { StreamLayoutStateService } from '../../openvidu-components/services/layout/stream-layout-state.service';
 import { PluginManagerService } from '../../services/plugin-manager.service';
+import { PluginEventsService } from '../../services/plugin-events.service';
 import { PluginRegistryService } from '../../services/plugin-registry.service';
 import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
@@ -51,6 +52,7 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 	);
 
 	constructor() {
+		inject(PluginEventsService);
 		let previousIds: string[] = [];
 		effect(() => {
 			const ids = this.pluginWindows().map((plugin) => plugin.id);
