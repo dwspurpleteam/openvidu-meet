@@ -1,12 +1,12 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
+import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { PanelService } from '../../openvidu-components/services/panel/panel.service';
-import { PluginManagerService } from '../../services/plugin-manager.service';
-import { PluginCatalogEntry, PluginRegistryService } from '../../services/plugin-registry.service';
+import { PluginCatalogService, RegistryPlugin } from '../../services/plugin-catalog.service';
 
 @Component({
 	selector: 'ov-meeting-plugins-panel',
@@ -17,16 +17,18 @@ import { PluginCatalogEntry, PluginRegistryService } from '../../services/plugin
 		'./meeting-plugins-panel.component.scss'
 	]
 })
-export class MeetingPluginsPanelComponent implements OnInit {
-	readonly manager = inject(PluginManagerService);
-	readonly registry = inject(PluginRegistryService);
+export class MeetingPluginsPanelComponent {
+	private readonly catalog = inject(PluginCatalogService);
+	private readonly runtimeConfig = inject(RuntimeConfigService);
 	readonly panels = inject(PanelService);
-	readonly plugins = signal<readonly PluginCatalogEntry[]>([]);
+	readonly plugins = signal<readonly RegistryPlugin[]>([]);
 	readonly loading = signal(false);
 	readonly loadFailed = signal(false);
 
-	ngOnInit(): void {
-		void this.load();
+	constructor() {
+		effect(() => {
+			if (this.runtimeConfig.isReadyForRequests()) untracked(() => void this.load());
+		});
 	}
 
 	async load(): Promise<void> {
@@ -36,12 +38,12 @@ export class MeetingPluginsPanelComponent implements OnInit {
 		this.loadFailed.set(false);
 
 		try {
-			const plugins: PluginCatalogEntry[] = [];
+			const plugins: RegistryPlugin[] = [];
 			let page = 1;
 			let totalPages: number;
 
 			do {
-				const result = await this.registry.list(page++);
+				const result = await this.catalog.list(page++);
 				plugins.push(...result.items);
 				totalPages = result.totalPages;
 			} while (page <= totalPages);
@@ -52,15 +54,5 @@ export class MeetingPluginsPanelComponent implements OnInit {
 		} finally {
 			this.loading.set(false);
 		}
-	}
-
-	status(pluginId: string): string {
-		const error = this.manager.errors()[pluginId];
-		return (
-			this.manager.pending()[pluginId] ??
-			this.manager.activations().find((item) => item.pluginId === pluginId)?.state ??
-			error ??
-			(!this.manager.canActivate(pluginId) ? 'FORBIDDEN' : 'AVAILABLE')
-		);
 	}
 }

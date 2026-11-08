@@ -1,77 +1,25 @@
-# Plugin UI: временный frontend-адаптер
+# Интеграция каталога и плагинов
 
-## Назначение
+## Текущее состояние
 
-В `feat/plugin-list` добавлен UI-адаптер для будущих Plugin Registry и Plugin Manager. Реальных сервисов этих компонентов пока нет, поэтому фронтенд использует временные реализации, сохраняющие форму данных и границы из `specs/specs/plugin-service-architecture/`.
+Панель **Plugins** загружает список из `GET /v1/plugins`, последовательно запрашивая все страницы. Адрес реестра строится от origin сервера Meet: в deployer маршрут `/v1/plugins` направляется в Plugin Registry. Запрос передаёт cookie выбора окружения, но не отправляет заголовки авторизации Meet. Для stage нужна соответствующая cookie ingress; без неё выбирается prod.
 
-Это не production-протокол и не замена серверной авторизации.
+Панель показывает название и описание, обрабатывает ошибку загрузки и позволяет повторить запрос. Активация недоступна: настоящий Plugin Manager не подключён. Список реестра содержит записи плагинов, не обязательно имеющие опубликованную версию.
 
-## Что видит пользователь
+Браузерный доступ предполагает Registry на том же origin, что и Meet. Запросы из внешнего webcomponent требуют поддержки CORS и cookie на стороне окружения; это не проверено. Локальная разработка без маршрута `/v1/plugins` также требует подходящего proxy.
 
-В панели звонка появилась кнопка **Plugins**. Она открывает каталог, в котором отображаются:
+## Что удалено и что осталось
 
-- доступные плагины из временного Registry;
-- состояние каждого подключения (`AVAILABLE`, `ACTIVATING`, `ACTIVE`, `FORBIDDEN`, `REJECTED`, `ACTIVATION_FAILED`);
-- список активных в текущем звонке подключений;
-- кнопка `Disconnect` напротив каждого активного подключения;
-- ошибки загрузки каталога и повторная попытка.
+Демонстрационные Registry, Manager, iframe-страницы и peer-репликация активаций через `meet.plugins.mock.v1` удалены. Встреча по-прежнему использует LiveKit; отдельный `PluginEventsService` принимает серверные события на topic `plugin.event.v1`, но пока не передаёт их в iframe.
 
-`restricted` демонстрирует недоступность по правам, а `rejected` — отказ активации. Эти сценарии зафиксированы во временном адаптере и предназначены для проверки UI.
+Механика плавающих окон и `PluginWindow` сохранены. Источник окон в layout временно отсутствует: реальные плагины не открываются. `PluginIframeWindowComponent` рассчитан на demo-политику и не должен использоваться с внешним URL без проверки доверенного origin и sandbox.
 
-После активации каждый участник звонка получает окно с UI-заготовкой в iframe. Окно использует существующую механику плавающих, сворачиваемых и возвращаемых окон. Остановка удаляет descriptor окна и вызывает `StreamLayoutStateService.clearWindow`.
+## Следующий этап
 
-Положение окна, его размер и сворачивание остаются локальными для участника. Сама активация и остановка распространяются на весь звонок.
+Настоящая активация требует серверной авторизации, асинхронного lifecycle, достоверного состояния для всех участников, восстановления при переподключении и остановки при завершении звонка. События и snapshot должны приходить из доверенного серверного источника, а не из peer data channel. ID окна следует выводить из стабильного `activationId`, локальную геометрию хранить отдельно от серверного состояния.
 
-## Точки замены
-
-| Сейчас | Когда появятся сервисы |
-| --- | --- |
-| `services/plugin-registry.service.ts` | заменить `list`, `find`, `getManifest` и `uiUrl` на HTTP-вызовы Registry |
-| `services/plugin-manager.service.ts` | заменить `activate`, `stop`, `refresh` и обработчик data-channel на Plugin Manager API/events |
-| `PluginActivation` | сопоставить с DTO `Activation` (`activationId`, `callId`, `pluginId`, `pluginVersion`, `registryId`, `state`, `stateChangedAt`, `idempotencyKey`) |
-| `PluginWindow` mapping в `meeting-custom-layout.component.ts` | оставить: descriptor окна отделён от серверной активации, ID строится из стабильного `activationId` |
-| `plugin-iframe-window.component.ts` | оставить только после проверки доверенного `uiUrl`, origin и sandbox-политики |
-
-Слой UI не должен превращать активацию в `ParticipantModel`. UI-окно — отдельный descriptor, а его identity должна оставаться стабильной при snapshot/event обновлениях.
-
-## Временный обмен состоянием
-
-Пока backend отсутствует, `PluginManagerService` реплицирует небольшой snapshot через LiveKit reliable data packet с topic `meet.plugins.mock.v1`.
-
-Сообщения имеют форму:
-
-```json
-{
-  "version": 1,
-  "callId": "<Room.sid>",
-  "type": "request | snapshot",
-  "items": []
-}
-```
-
-`items` содержат временные поля `revision` и `writer` для идемпотентного слияния. Новый участник отправляет `request`, уже подключённый участник отвечает snapshot. Записи другого звонка, неизвестный plugin ID, неправильная версия, слишком большой пакет и malformed JSON отбрасываются.
-
-Это только стендовая peer-replication модель. Она не предоставляет:
-
-- серверской проверки пользователя, роли, прав и квот;
-- подписи сообщений или защиты от участника, подделывающего snapshot;
-- durable Activation Store;
-- backend lifecycle `ACTIVATING → ACTIVE`;
-- серверной остановки после окончания звонка или отзыва разрешения.
-
-При подключении Plugin Manager data-channel нужно удалить, не расширять его до доверенного control plane. Активация должна выполняться сервером асинхронно, а UI должен получать authoritative snapshot и события Manager. `activationId` должен выдаваться Manager; повторный запрос должен использовать idempotency key.
-
-## Имена demo-ресурсов
-
-`src/assets/plugin-demo/transcript.html` и `notes.html` — только локальные UI fixtures. Они не реализуют Frontend SDK, ready-handshake, signed launch context или bridge с Meet. Перед загрузкой внешних страниц нужно реализовать требования из раздела 4.3–4.4 документа `floating-windows-and-plugin-integration.md`: доверенный origin, CSP, согласованный sandbox, проверка `event.source`/`event.origin` и очистка listeners.
+Перед открытием UI плагина необходима проверка URL, ограниченный iframe sandbox и безопасный bridge с проверкой `event.origin`, `event.source` и привязки к activation; секреты OpenVidu не должны передаваться iframe. Детали и открытые вопросы описаны в `floating-windows-and-plugin-integration.md` и спецификации `specs/specs/plugin-service-architecture/spec.md`.
 
 ## Проверки
 
-Unit-проверки временного manager находятся в `services/plugin-manager.service.spec.ts` и покрывают:
-
-- пагинацию Registry и manifest;
-- несколько активаций, запрет дублей и выборочную остановку;
-- отказ по правам и отказ активации;
-- ошибку остановки с сохранением активного подключения;
-- snapshot для late join/reconnect;
-- stale/foreign/malformed сообщения и очистку после выхода.
+`plugin-catalog.service.spec.ts` проверяет запрос и отсутствие заголовков авторизации Meet. Механику окон проверяет `base-layout.component.spec.ts`. Интеграционную проверку каталога и реальный сценарий звонка следует выполнять на доступном стенде, отдельно подтверждая выбранное окружение.
