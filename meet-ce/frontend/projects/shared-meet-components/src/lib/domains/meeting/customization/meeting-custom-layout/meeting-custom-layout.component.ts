@@ -1,9 +1,5 @@
-import { Component, computed, effect, inject, OnDestroy, untracked } from '@angular/core';
-import { PluginWindow } from '../../components/plugin-iframe-window/plugin-iframe-window.component';
-import { StreamLayoutStateService } from '../../openvidu-components/services/layout/stream-layout-state.service';
-import { PluginManagerService } from '../../services/plugin-manager.service';
+import { Component, computed, inject } from '@angular/core';
 import { PluginEventsService } from '../../services/plugin-events.service';
-import { PluginRegistryService } from '../../services/plugin-registry.service';
 import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
 import { OpenViduComponentsUiModule, PanelService, PanelType } from '../../openvidu-components';
@@ -27,44 +23,15 @@ import { MeetingWaitingPanelComponent } from '../meeting-waiting-panel/meeting-w
 	templateUrl: './meeting-custom-layout.component.html',
 	styleUrl: './meeting-custom-layout.component.scss'
 })
-export class MeetingCustomLayoutComponent implements OnDestroy {
+export class MeetingCustomLayoutComponent {
 	protected meetingContextService = inject(MeetingContextService);
 	protected meetingStateService = inject(MeetingStateService);
 	protected roomAccessLinkService = inject(RoomAccessLinkService);
 	protected captionsService = inject(MeetingCaptionsService);
 	protected panelService = inject(PanelService);
 	private readonly runtimeConfigService = inject(RuntimeConfigService);
-	private readonly windowState = inject(StreamLayoutStateService);
-	private readonly pluginManager = inject(PluginManagerService);
-	private readonly pluginRegistry = inject(PluginRegistryService);
-	readonly pluginWindows = computed<readonly PluginWindow[]>(() =>
-		this.pluginManager
-			.activations()
-			.filter((activation) => activation.state === 'ACTIVE' && this.runtimeConfigService.isReadyForRequests())
-			.map((activation) => ({
-				id: `plugin:${activation.activationId}`,
-				title: this.pluginRegistry.find(activation.pluginId)?.name ?? activation.pluginId,
-				url: this.pluginRegistry.uiUrl(activation.pluginId)
-			}))
-	);
-	private readonly hasVisiblePlugin = computed(() =>
-		this.pluginWindows().some((plugin) => this.windowState.windowPlacement(plugin.id).mode !== 'minimized')
-	);
-
 	constructor() {
 		inject(PluginEventsService);
-		let previousIds: string[] = [];
-		effect(() => {
-			const ids = this.pluginWindows().map((plugin) => plugin.id);
-			untracked(() =>
-				previousIds.filter((id) => !ids.includes(id)).forEach((id) => this.windowState.clearWindow(id))
-			);
-			previousIds = ids;
-		});
-	}
-
-	ngOnDestroy(): void {
-		this.pluginWindows().forEach((plugin) => this.windowState.clearWindow(plugin.id));
 	}
 
 	lkRoom = this.meetingStateService.lkRoom;
@@ -85,7 +52,6 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 	shouldShowLinkOverlay = computed(() => {
 		const hasPublicSpeakerLink = !!this.roomAccessUrl();
 		return (
-			!this.hasVisiblePlugin() &&
 			!this.isEmbeddedMode() &&
 			this.meetingContextService.meetingUI().showShareAccessLinks &&
 			this.meetingStateService.isAlone() &&
@@ -97,9 +63,7 @@ export class MeetingCustomLayoutComponent implements OnDestroy {
 	 * Waiting overlay: embedded modes (webcomponent or iframe) only, shown while alone
 	 * in place of the share/copy link overlay (link sharing is handled by the host application).
 	 */
-	shouldShowWaitingOverlay = computed(
-		() => !this.hasVisiblePlugin() && this.isEmbeddedMode() && this.meetingStateService.isAlone()
-	);
+	shouldShowWaitingOverlay = computed(() => this.isEmbeddedMode() && this.meetingStateService.isAlone());
 
 	/** True when either overlay covers the layout (used to hide the hidden-participants indicator). */
 	shouldShowOverlay = computed(() => this.shouldShowLinkOverlay() || this.shouldShowWaitingOverlay());
