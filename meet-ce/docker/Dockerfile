@@ -53,6 +53,9 @@ ARG BASE_HREF=/
 RUN pnpm install --frozen-lockfile && \
     ./meet.sh build --skip-install --base-href=${BASE_HREF}
 
+ARG GIT_COMMIT=unknown
+RUN printf '{"gitCommit":"%s","buildDate":"%s"}\n' "$GIT_COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > meet-ce/backend/info.json
+
 # ====================================================
 # Stage 2: production dependencies
 # ====================================================
