@@ -57,6 +57,7 @@ h4 {
 .active-row > div {
 	min-width: 0;
 	flex: 1;
+	overflow-wrap: anywhere;
 }
 
 .plugin-name {
