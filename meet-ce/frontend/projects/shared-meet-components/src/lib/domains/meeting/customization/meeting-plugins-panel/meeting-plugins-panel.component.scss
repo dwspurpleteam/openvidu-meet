@@ -85,6 +85,23 @@ h4 {
 	font-size: 11px;
 }
 
+.plugin-version {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 6px;
+	color: var(--ov-text-surface-color);
+	font-size: 12px;
+}
+
+.plugin-version select {
+	max-width: 100%;
+	padding: 4px;
+	color: inherit;
+	background: var(--ov-surface-color);
+}
+
 .status-active {
 	color: var(--ov-success-color);
 }

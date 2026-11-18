@@ -1,0 +1,25 @@
+type: object
+required: [activationId, pluginId, pluginVersion, state, failureCode, ui]
+properties:
+    activationId:
+        type: string
+        format: uuid
+    pluginId:
+        type: string
+    pluginVersion:
+        type: string
+    state:
+        type: string
+        enum: [ACTIVATING, ACTIVE, FAILED, DEGRADED, SUSPENDING, SUSPENDED, RESUMING, STOPPING, STOPPED]
+    failureCode:
+        type: [string, 'null']
+    ui:
+        description: Embed information when the activation is active and has a valid external UI URL.
+        type: [object, 'null']
+        required: [title, url]
+        properties:
+            title:
+                type: string
+            url:
+                type: string
+                format: uri

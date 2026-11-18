@@ -43,6 +43,7 @@ import { LivekitWebhookService } from '../services/livekit-webhook.service.js';
 import { LiveKitService } from '../services/livekit.service.js';
 import { MeetingPresenceService } from '../services/meeting-presence.service.js';
 import { MeetingService } from '../services/meeting.service.js';
+import { PluginActivationService } from '../services/plugin-activation.service.js';
 import { MigrationService } from '../services/migration.service.js';
 import { ParticipantNameService } from '../services/participant-name.service.js';
 import { RecordingAutoStartStateService } from '../services/recording-auto-start-state.service.js';
@@ -154,6 +155,7 @@ const domainModule = new ContainerModule(({ bind }) => {
 	bind(RecordingService).toSelf().inSingletonScope();
 	bind(RoomService).toSelf().inSingletonScope();
 	bind(MeetingService).toSelf().inSingletonScope();
+	bind(PluginActivationService).toSelf().inSingletonScope();
 	bind(ParticipantNameService).toSelf().inSingletonScope();
 	bind(MeetingPresenceService).toSelf().inSingletonScope();
 	bind(RoomMemberService).toSelf().inSingletonScope();

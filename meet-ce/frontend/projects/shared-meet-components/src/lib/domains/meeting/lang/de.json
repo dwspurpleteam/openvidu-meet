@@ -315,6 +315,13 @@
 		"SYNC_FAILED": "Der Plugin-Status konnte nicht synchronisiert werden.",
 		"STOP_FAILED": "Das Plugin konnte nicht getrennt werden.",
 		"EMPTY_CATALOG": "Keine Plugins vorhanden.",
+		"CHOOSE_VERSION": "Version auswählen",
+		"VERSION": "Version",
+		"LOADING_VERSIONS": "Versionen werden geladen…",
+		"VERSIONS_FAILED": "Die Plugin-Versionen konnten nicht geladen werden.",
+		"NO_VERSIONS": "Es wurde noch keine Version veröffentlicht.",
+		"IFRAME_UNAVAILABLE": "Die Oberfläche dieses Plugins kann im Meeting nicht geöffnet werden.",
+		"MOCK_DESCRIPTION": "Simulierte Aktivierung mit einem eigenständigen Demo-Iframe.",
 		"STATUS": {
 			"AVAILABLE": "Verfügbar",
 			"ACTIVATING": "Wird aktiviert…",

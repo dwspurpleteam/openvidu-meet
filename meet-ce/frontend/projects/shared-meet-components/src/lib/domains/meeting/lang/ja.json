@@ -315,6 +315,13 @@
 		"SYNC_FAILED": "プラグインの状態を同期できませんでした。",
 		"STOP_FAILED": "プラグインを切断できませんでした。",
 		"EMPTY_CATALOG": "プラグインが登録されていません。",
+		"CHOOSE_VERSION": "バージョンを選択",
+		"VERSION": "バージョン",
+		"LOADING_VERSIONS": "バージョンを読み込み中…",
+		"VERSIONS_FAILED": "プラグインのバージョンを取得できませんでした。",
+		"NO_VERSIONS": "公開済みのバージョンはありません。",
+		"IFRAME_UNAVAILABLE": "この会議では、このプラグインの画面を開けません。",
+		"MOCK_DESCRIPTION": "独立したデモ用の iframe でプラグインの有効化をシミュレートします。",
 		"STATUS": {
 			"AVAILABLE": "利用可能",
 			"ACTIVATING": "有効化中…",

@@ -15,6 +15,9 @@
 	</div>
 
 	<div class="scrollable" aria-live="polite">
+		@if (activation.syncFailed()) {
+			<p class="plugin-status status-activation_failed">{{ 'PLUGINS.SYNC_FAILED' | translate }}</p>
+		}
 		@if (loading()) {
 			<div class="state-message"><mat-spinner diameter="28" />{{ 'PLUGINS.LOADING' | translate }}</div>
 		} @else if (loadFailed()) {
@@ -23,22 +26,120 @@
 				<span>{{ 'PLUGINS.LOAD_FAILED' | translate }}</span>
 				<button mat-stroked-button type="button" (click)="load()">{{ 'PLUGINS.RETRY' | translate }}</button>
 			</div>
-		} @else {
+		}
+		@if (displayedPlugins().length > 0 || (!loading() && !loadFailed())) {
 			<section class="plugin-section" aria-labelledby="available-plugins-title">
 				<h4 id="available-plugins-title">{{ 'PLUGINS.AVAILABLE' | translate }}</h4>
-				@if (plugins().length === 0) {
+				@if (displayedPlugins().length === 0) {
 					<p class="empty-message">{{ 'PLUGINS.EMPTY_CATALOG' | translate }}</p>
 				}
-				@for (plugin of plugins(); track plugin.id) {
+				@for (plugin of displayedPlugins(); track plugin.id) {
+					@let current = activation.activations().get(plugin.id);
+					@let mock = activation.mockPlugin();
+					@let isMock = mock?.id === plugin.id;
+					@let versions = selection();
 					<article class="plugin-row">
 						<div class="plugin-copy">
 							<div class="plugin-name">
 								<mat-icon aria-hidden="true">extension</mat-icon>
 								<strong>{{ plugin.name }}</strong>
 							</div>
-							<p>{{ plugin.description }}</p>
+							@if (isMock) {
+								<p>{{ 'PLUGINS.MOCK_DESCRIPTION' | translate }}</p>
+							} @else if (plugin.description) {
+								<p>{{ plugin.description }}</p>
+							}
+							@if (activation.isStarting(plugin.id)) {
+								<span class="plugin-status">{{ 'PLUGINS.STATUS.ACTIVATING' | translate }}</span>
+							} @else if (current) {
+								<span class="plugin-status" [class.status-active]="current.state === 'ACTIVE'">
+									{{ 'PLUGINS.STATUS.' + current.state | translate }}
+								</span>
+								@if (current.failureCode) {
+									<span class="plugin-status status-activation_failed">
+										· {{ current.failureCode }}</span
+									>
+								}
+								@if (current.state === 'ACTIVE' && !activation.hasWindow(current.activationId)) {
+									<p>{{ 'PLUGINS.IFRAME_UNAVAILABLE' | translate }}</p>
+								}
+							}
+							@if (activationFailed() === plugin.id && !activation.isStarting(plugin.id)) {
+								<p class="status-activation_failed">
+									{{ 'PLUGINS.STATUS.ACTIVATION_FAILED' | translate }}
+								</p>
+							}
+							@if (
+								versions?.pluginId === plugin.id &&
+								activation.canActivate() &&
+								(!current || current.state === 'FAILED' || current.state === 'STOPPED')
+							) {
+								@if (versions?.loading) {
+									<p>{{ 'PLUGINS.LOADING_VERSIONS' | translate }}</p>
+								} @else if (versions?.failed) {
+									<p>{{ 'PLUGINS.VERSIONS_FAILED' | translate }}</p>
+								} @else if (versions?.versions?.length) {
+									<label class="plugin-version">
+										{{ 'PLUGINS.VERSION' | translate }}
+										<select
+											#versionSelect
+											(change)="selectedVersion.set(versionSelect.value)"
+											[disabled]="activation.isStarting(plugin.id)"
+										>
+											<option value="" [selected]="!selectedVersion()">
+												{{ 'PLUGINS.CHOOSE_VERSION' | translate }}
+											</option>
+											@for (version of versions?.versions; track version) {
+												<option [value]="version" [selected]="selectedVersion() === version">
+													{{ version }}
+												</option>
+											}
+										</select>
+									</label>
+								} @else {
+									<p>{{ 'PLUGINS.NO_VERSIONS' | translate }}</p>
+								}
+							}
 						</div>
-						<button mat-button type="button" disabled>{{ 'PLUGINS.UNAVAILABLE' | translate }}</button>
+						@if (!current || current.state === 'FAILED' || current.state === 'STOPPED') {
+							@if (!activation.canActivate() || (activation.mode() === 'mock' && !isMock)) {
+								<button mat-button type="button" disabled>
+									{{ 'PLUGINS.UNAVAILABLE' | translate }}
+								</button>
+							} @else if (isMock && mock) {
+								<button
+									mat-button
+									type="button"
+									[disabled]="activation.isStarting(plugin.id)"
+									(click)="activatePlugin(plugin.id, mock.version)"
+								>
+									{{ 'PLUGINS.ACTIVATE' | translate }}
+								</button>
+							} @else if (versions?.pluginId === plugin.id && versions?.versions?.length) {
+								<button
+									mat-button
+									type="button"
+									[disabled]="!selectedVersion() || activation.isStarting(plugin.id)"
+									(click)="activatePlugin(plugin.id, selectedVersion())"
+								>
+									{{ 'PLUGINS.ACTIVATE' | translate }}
+								</button>
+							} @else {
+								<button
+									mat-button
+									type="button"
+									[disabled]="versions?.pluginId === plugin.id && versions?.loading"
+									(click)="chooseVersion(plugin.id)"
+								>
+									{{
+										(versions?.pluginId === plugin.id && versions?.failed
+											? 'PLUGINS.RETRY'
+											: 'PLUGINS.CHOOSE_VERSION'
+										) | translate
+									}}
+								</button>
+							}
+						}
 					</article>
 				}
 			</section>

@@ -1,0 +1,110 @@
+parameters:
+    - name: roomId
+      in: path
+      required: true
+      schema:
+          type: string
+get:
+    operationId: listMeetingPluginActivations
+    summary: List plugin activations for the current meeting
+    tags: [Internal API - Plugin Activations]
+    security:
+        - roomMemberTokenHeader: []
+    parameters:
+        - name: callId
+          in: query
+          required: true
+          description: LiveKit Room SID of the current meeting.
+          schema:
+              type: string
+              minLength: 1
+              maxLength: 255
+    responses:
+        '200':
+            description: The activation snapshot visible to a connected room member.
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        required: [mode, canActivate, activations]
+                        properties:
+                            mode:
+                                type: string
+                                enum: [disabled, manager, mock]
+                            canActivate:
+                                type: boolean
+                            activations:
+                                type: array
+                                items:
+                                    $ref: ./activation.yaml
+                            mockPlugin:
+                                description: Demo fixture enabled explicitly on the Meet server.
+                                type: object
+                                required: [id, name, version]
+                                properties:
+                                    id:
+                                        type: string
+                                    name:
+                                        type: string
+                                    version:
+                                        type: string
+                            managerStatusUnavailable:
+                                type: boolean
+                                description: The response contains only demo status because the Manager status request failed.
+        '401':
+            description: Missing or invalid room member token.
+        '403':
+            description: The member lacks meeting access or has no participant identity.
+        '404':
+            description: The live meeting or participant is no longer present.
+        '422':
+            description: Invalid room or call identifier.
+        '503':
+            description: The activation service is unavailable.
+post:
+    operationId: createMeetingPluginActivation
+    summary: Request plugin activation as a moderator in the current meeting
+    tags: [Internal API - Plugin Activations]
+    security:
+        - roomMemberTokenHeader: []
+    requestBody:
+        required: true
+        content:
+            application/json:
+                schema:
+                    type: object
+                    required: [callId, pluginId, pluginVersion]
+                    additionalProperties: false
+                    properties:
+                        callId:
+                            description: LiveKit Room SID used to detect a stale request.
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+                        pluginId:
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+                        pluginVersion:
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+    responses:
+        '202':
+            description: Activation accepted or existing activation returned.
+            content:
+                application/json:
+                    schema:
+                        $ref: ./activation.yaml
+        '401':
+            description: Missing or invalid room member token.
+        '403':
+            description: The caller is outside the room or is not a connected moderator.
+        '404':
+            description: The meeting or participant no longer exists, or the mock version is unknown.
+        '409':
+            description: An activation is already being registered or a retry must use the original version.
+        '422':
+            description: Invalid activation request.
+        '503':
+            description: Plugin activation is disabled or Plugin Manager did not return a valid response.
