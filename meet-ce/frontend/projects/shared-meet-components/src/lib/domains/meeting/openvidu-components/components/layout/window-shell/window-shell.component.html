@@ -1,0 +1,57 @@
+@if (controlsVisible()) {
+	<header class="window-header">
+		<button
+			type="button"
+			class="window-handle"
+			cdkDragHandle
+			[disabled]="!floating()"
+			[attr.aria-label]="('WINDOW.MOVE' | translate) + ': ' + title()"
+			(keydown)="onGeometryKey($event)"
+		>
+			<span>{{ title() }}</span>
+		</button>
+		<button
+			type="button"
+			mat-icon-button
+			id="float-btn"
+			data-window-action="placement"
+			[attr.aria-label]="(floating() ? 'WINDOW.REATTACH' : 'WINDOW.FLOAT') | translate"
+			[matTooltip]="(floating() ? 'WINDOW.REATTACH' : 'WINDOW.FLOAT') | translate"
+			(click)="setMode(floating() ? 'grid' : 'floating')"
+		>
+			<mat-icon>{{ floating() ? 'grid_view' : 'picture_in_picture_alt' }}</mat-icon>
+		</button>
+		@if (floating()) {
+			<button
+				type="button"
+				mat-icon-button
+				data-window-action="minimize"
+				[attr.aria-label]="'WINDOW.MINIMIZE' | translate"
+				[matTooltip]="'WINDOW.MINIMIZE' | translate"
+				(click)="setMode('minimized')"
+			>
+				<mat-icon>minimize</mat-icon>
+			</button>
+		}
+	</header>
+}
+<div class="window-body"><ng-content /></div>
+@if (floating() && controlsVisible()) {
+	@for (corner of corners; track corner) {
+		<button
+			type="button"
+			class="resize-handle"
+			[class]="'resize-handle resize-' + corner"
+			[attr.aria-label]="'WINDOW.RESIZE' | translate"
+			(pointerdown)="onResizeStart($event, corner)"
+			(pointermove)="onResizeMove($event)"
+			(pointerup)="finishResize()"
+			(pointercancel)="finishResize(true)"
+			(lostpointercapture)="finishResize()"
+			(keydown)="onGeometryKey($event, true)"
+		></button>
+	}
+}
+@if (interacting()) {
+	<div class="interaction-shield" aria-hidden="true"></div>
+}

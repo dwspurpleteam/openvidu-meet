@@ -1,81 +1,92 @@
-<div class="container">
+<div class="container" [class.with-dock]="minimizedWindows().length > 0">
 	<div id="layout" class="layout" #layout>
-		<!-- Top slot: Render elements that should appear at the top -->
 		@for (template of layoutAdditionalElementsTopTemplates(); track template) {
 			<ng-container *ngTemplateOutlet="template" />
 		}
-
 		@if (localParticipant(); as participant) {
 			@for (stream of participant.streams(); track trackParticipantElement($index, stream)) {
-				<div
-					#localLayoutElement
-					class="local_participant OV_root OV_publisher"
-					[class.OV_floating]="stream.isFloating"
+				<ov-window-shell
+					class="local_participant"
 					[class.OV_big]="stream.isPinned"
 					[class.OV_screen]="stream.isScreenStream"
 					[id]="'participant-' + stream.participant.identity"
-					cdkDrag
-					cdkDragBoundary="#layout-container"
-					[cdkDragDisabled]="!stream.isFloating"
-					[cdkDragFreeDragPosition]="stream.isFloating ? currentDragPosition() : ZERO_DRAG_POSITION"
-					(cdkDragReleased)="onDragReleased($event)"
+					[windowId]="stream.streamId"
+					[boundary]="layout"
+					[title]="
+						(stream.participant.name ?? '') +
+						' · ' +
+						((stream.isScreenStream ? 'WINDOW.SCREEN' : 'WINDOW.CAMERA') | translate)
+					"
+					[controlsVisible]="controlsVisible()"
+					(placementChanged)="onPlacementChanged(stream)"
+					(dropped)="onWindowDropped($event)"
 				>
 					<ng-container *ngTemplateOutlet="streamTemplate(); context: { $implicit: stream }" />
-					@if (stream.isFloating) {
-						<div class="resize-handle resize-se"
-							(pointerdown)="onResizeStart($event, 'se')"
-							(mousedown)="$event.stopPropagation()"
-							(touchstart)="$event.stopPropagation(); $event.preventDefault()"></div>
-						<div class="resize-handle resize-sw"
-							(pointerdown)="onResizeStart($event, 'sw')"
-							(mousedown)="$event.stopPropagation()"
-							(touchstart)="$event.stopPropagation(); $event.preventDefault()"></div>
-						<div class="resize-handle resize-ne"
-							(pointerdown)="onResizeStart($event, 'ne')"
-							(mousedown)="$event.stopPropagation()"
-							(touchstart)="$event.stopPropagation(); $event.preventDefault()"></div>
-						<div class="resize-handle resize-nw"
-							(pointerdown)="onResizeStart($event, 'nw')"
-							(mousedown)="$event.stopPropagation()"
-							(touchstart)="$event.stopPropagation(); $event.preventDefault()"></div>
-					}
-				</div>
+				</ov-window-shell>
 			}
 		}
-
-		<!-- Default slot: Render additional layout elements (backward compatibility and default position) -->
 		@for (template of layoutAdditionalElementsDefaultTemplates(); track template) {
 			<ng-container *ngTemplateOutlet="template" />
 		}
-
-		@for (stream of remoteCameraStreams(); track trackParticipantElement($index, stream)) {
-			<div
-				class="remote-participant OV_root OV_publisher"
-				[id]="'participant-' + stream.participant.identity"
+		@for (stream of orderedRemoteStreams(); track trackParticipantElement($index, stream)) {
+			<ov-window-shell
+				class="remote-participant"
 				[class.OV_big]="stream.isPinned"
+				[class.OV_screen]="stream.isScreenStream"
+				[id]="'participant-' + stream.participant.identity"
+				[windowId]="stream.streamId"
+				[boundary]="layout"
+				[title]="
+					(stream.participant.name ?? '') +
+					' · ' +
+					((stream.isScreenStream ? 'WINDOW.SCREEN' : 'WINDOW.CAMERA') | translate)
+				"
+				[controlsVisible]="controlsVisible()"
+				(placementChanged)="onPlacementChanged(stream)"
+				(dropped)="onWindowDropped($event)"
 			>
 				<ng-container *ngTemplateOutlet="streamTemplate(); context: { $implicit: stream }" />
-			</div>
+			</ov-window-shell>
 		}
-		@for (stream of remoteScreenStreams(); track trackParticipantElement($index, stream)) {
-			<div
-				class="remote-participant OV_root OV_publisher OV_screen"
-				[id]="'participant-' + stream.participant.identity"
-				[class.OV_big]="stream.isPinned"
+		@for (plugin of pluginWindows(); track plugin.id) {
+			<ov-window-shell
+				class="plugin-window"
+				[windowId]="plugin.id"
+				[title]="plugin.title"
+				[boundary]="layout"
+				(placementChanged)="onPlacementChanged()"
+				(dropped)="onWindowDropped($event)"
 			>
-				<ng-container *ngTemplateOutlet="streamTemplate(); context: { $implicit: stream }" />
-			</div>
+				<ov-plugin-iframe-window [plugin]="plugin" />
+			</ov-window-shell>
 		}
-
-		<!-- Bottom slot: Render elements that should appear at the bottom -->
 		@for (template of layoutAdditionalElementsBottomTemplates(); track template) {
 			<ng-container *ngTemplateOutlet="template" />
 		}
 	</div>
-
+	@if (dragging()) {
+		<div class="drag-shield" aria-hidden="true"></div>
+	}
+	@if (minimizedWindows().length || dragging()) {
+		<aside #dock class="window-dock" [class.drop-target]="dragging()" [attr.aria-label]="'WINDOW.DOCK' | translate">
+			@if (dragging()) {
+				<mat-icon aria-hidden="true">move_to_inbox</mat-icon>
+			}
+			@for (window of minimizedWindows(); track window.id) {
+				<button
+					type="button"
+					[attr.data-restore-window]="window.id"
+					(click)="restoreWindow(window.id)"
+					[attr.aria-label]="
+						('WINDOW.RESTORE' | translate) + ': ' + window.title + ' · ' + (window.kind | translate)
+					"
+					[matTooltip]="window.title + ' · ' + (window.kind | translate)"
+				>
+					<mat-icon aria-hidden="true">{{ window.icon }}</mat-icon>
+					<span>{{ window.title }}</span>
+				</button>
+			}
+		</aside>
+	}
 </div>
-
-<!-- Built-in default stream template — used when no #stream is provided via content projection or TemplateRegistry. -->
-<ng-template #defaultStream let-stream>
-	<ov-stream [stream]="stream" />
-</ng-template>
+<ng-template #defaultStream let-stream><ov-stream [stream]="stream" /></ng-template>

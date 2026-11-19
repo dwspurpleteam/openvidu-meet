@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { PluginEventsService } from '../../services/plugin-events.service';
 import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
 import { OpenViduComponentsUiModule, PanelService, PanelType } from '../../openvidu-components';
@@ -29,6 +30,9 @@ export class MeetingCustomLayoutComponent {
 	protected captionsService = inject(MeetingCaptionsService);
 	protected panelService = inject(PanelService);
 	private readonly runtimeConfigService = inject(RuntimeConfigService);
+	constructor() {
+		inject(PluginEventsService);
+	}
 
 	lkRoom = this.meetingStateService.lkRoom;
 	roomAccessUrl = this.roomAccessLinkService.speakerPublicLink;

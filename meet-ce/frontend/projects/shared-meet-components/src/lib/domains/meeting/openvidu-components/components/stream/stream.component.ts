@@ -129,11 +129,6 @@ export class StreamComponent implements OnDestroy {
 		const stream = this.stream();
 
 		if (stream?.participant) {
-			// streamId (not videoTrack.trackSid) so pinning also works on avatar-only tiles.
-			if (stream.participant.isLocal && stream.isFloating) {
-				this.streamLayoutService.toggleStreamFloating(stream.streamId);
-			}
-
 			this.streamLayoutService.toggleStreamPinned(stream.streamId);
 		}
 
@@ -146,8 +141,13 @@ export class StreamComponent implements OnDestroy {
 	toggleFloat() {
 		const stream = this.stream();
 
-		if (stream?.participant && stream.participant.isLocal) {
-			this.participantService.setLocalCameraFloating(!stream.isFloating);
+		if (stream?.participant) {
+			if (stream.participant.isLocal && stream.isCameraStream) {
+				this.participantService.setLocalCameraFloating(!stream.isFloating);
+			} else {
+				this.streamLayoutService.toggleStreamFloating(stream.streamId);
+			}
+
 			this.layoutService.update();
 		}
 	}

@@ -389,8 +389,8 @@ export const localCameraStream = (page: Page): Locator =>
  */
 export const floatStream = async (page: Page): Promise<void> => {
 	await hoverStream(page, '.OV_publisher .OV_stream_video.local');
-	await expect(page.locator('#float-btn')).toBeVisible();
-	await page.locator('#float-btn').click();
+	await expect(localCameraStream(page).locator('#float-btn')).toBeVisible();
+	await localCameraStream(page).locator('#float-btn').click();
 	await expect(localCameraStream(page)).toHaveClass(/OV_floating/);
 };
 
@@ -400,8 +400,8 @@ export const floatStream = async (page: Page): Promise<void> => {
  */
 export const dockStream = async (page: Page): Promise<void> => {
 	await hoverStream(page, '.local_participant .OV_stream_video.local');
-	await expect(page.locator('#float-btn')).toBeVisible();
-	await page.locator('#float-btn').click();
+	await expect(localCameraStream(page).locator('#float-btn')).toBeVisible();
+	await localCameraStream(page).locator('#float-btn').click();
 	await expect(localCameraStream(page)).not.toHaveClass(/OV_floating/);
 };
 
@@ -531,17 +531,13 @@ export const dragStream = async (page: Page, selector: string, targetX: number, 
 	const element = selector === '.local_participant' ? localCameraStream(page) : page.locator(selector).first();
 
 	await expect(element).toBeVisible({ timeout: 5_000 });
-	const box = await element.boundingBox();
+	const box = await element.locator('.window-handle').boundingBox();
 
 	if (!box) {
-		throw new Error('Element not found for dragging');
+		throw new Error('Window drag handle not found');
 	}
 
-	// Grab the tile at the TOP-CENTER edge, clear of the hover controls (tile center) and the
-	// corner resize handles. Dragging is 1:1 (no transition on the CDK transform), so the grabbed
-	// point stays under the pointer for the whole drag — pressing on the center would press the
-	// float/pin buttons and the release would CLICK them, toggling dock instead of dragging.
-	await page.mouse.move(box.x + box.width / 2, box.y + 8);
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 	await page.mouse.down();
 	await page.mouse.move(targetX, targetY, { steps: 10 });
 	await page.mouse.up();

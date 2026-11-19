@@ -100,6 +100,10 @@
 			</ng-container>
 		}
 
+		<ng-container *ovAdditionalPanels>
+			<ng-content select="ov-meeting-plugins-panel" />
+		</ng-container>
+
 		<!-- Custom layout component -->
 		<ng-container *ovLayout>
 			<ng-content select="ov-meeting-custom-layout" />

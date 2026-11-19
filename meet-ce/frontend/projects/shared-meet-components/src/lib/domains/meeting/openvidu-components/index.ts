@@ -7,6 +7,7 @@ export * from './components/connection-quality-indicator/connection-quality-indi
 export * from './components/hidden-participants-indicator/hidden-participants-indicator.component';
 export * from './components/landscape-warning/landscape-warning.component';
 export * from './components/layout/smart-layout/smart-layout.component';
+export * from './components/layout/window-shell/window-shell.component';
 export * from './components/meeting-view/meeting-view.component';
 export * from './components/panel/activities-panel/activities-panel.component';
 export * from './components/panel/activities-panel/recording-activity/recording-activity.component';
@@ -52,6 +53,7 @@ export * from './pipes/translate.pipe';
 export * from './services/chat/chat.service';
 export * from './services/e2ee/e2ee.service';
 export * from './services/layout/smart-layout.service';
+export * from './services/layout/stream-layout-state.service';
 export * from './services/local-media/local-media.service';
 export * from './services/meeting-phase/meeting-phase.service';
 export * from './services/meeting-ending-soon/meeting-ending-soon.service';

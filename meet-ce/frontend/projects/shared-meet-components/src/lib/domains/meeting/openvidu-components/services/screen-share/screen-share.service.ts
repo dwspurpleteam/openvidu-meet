@@ -26,13 +26,16 @@ export class ScreenShareService {
 	 */
 	async setEnabled(enabled: boolean): Promise<void> {
 		const localParticipant = this.participantService.localParticipant();
+		const previousScreenId = localParticipant?.streams().find((stream) => stream.isScreenStream)?.streamId;
 		const options = this.captureOptions();
 		const track = await localParticipant?.setScreenShareEnabled(enabled, options);
+
+		if (!enabled && previousScreenId) this.streamLayoutService.clearWindow(previousScreenId);
 
 		if (enabled && track) {
 			// Set all videos to normal size when a local screen is shared
 			this.streamLayoutService.unpinAllStreams();
-			this.streamLayoutService.toggleStreamPinned(track.trackSid);
+			this.streamLayoutService.pinStreamIfInGrid(track.trackSid);
 			this.streamLayoutService.recordScreenSharePublication(track.trackSid, new Date().getTime());
 
 			track?.addListener('ended', async () => {

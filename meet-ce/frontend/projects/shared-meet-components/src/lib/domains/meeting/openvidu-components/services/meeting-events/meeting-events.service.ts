@@ -146,7 +146,7 @@ export class MeetingEventsService {
 
 				if (isScreenTrack) {
 					this.streamLayoutService.unpinAllStreams();
-					this.streamLayoutService.toggleStreamPinned(track.sid);
+					this.streamLayoutService.pinStreamIfInGrid(track.sid);
 
 					if (track.sid) {
 						this.streamLayoutService.recordScreenSharePublication(track.sid, new Date().getTime());
@@ -180,7 +180,11 @@ export class MeetingEventsService {
 	}
 
 	private subscribeToTrackUnpublished(room: Room) {
-		room.on(RoomEvent.TrackUnpublished, (_publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+		room.on(RoomEvent.TrackUnpublished, (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+			if (publication.source === Track.Source.ScreenShare) {
+				this.streamLayoutService.clearWindow(publication.trackSid);
+			}
+
 			this.participantService.addRemoteParticipant(participant);
 		});
 	}

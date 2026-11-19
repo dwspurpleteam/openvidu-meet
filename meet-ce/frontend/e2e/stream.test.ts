@@ -372,7 +372,7 @@ test.describe('Stream E2E Tests', () => {
 	});
 
 	test.describe('Stream UI controls - Float and dock', () => {
-		test('should show the FLOAT button ONLY over the LOCAL video', async ({ page }) => {
+		test('should offer detachment on both LOCAL and REMOTE video', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await expectStreamCount(page, 1);
 
@@ -380,32 +380,27 @@ test.describe('Stream E2E Tests', () => {
 			await hoverStream(page, '.OV_publisher .OV_stream_video.local');
 			await expect(page.locator('#float-btn')).toBeVisible();
 
-			// Create second participant to verify float button doesn't appear on remote
+			// The same window control is available on remote video.
 			const pageB = await page.context().newPage();
 			await openMeeting(pageB, accessUrl);
 			await waitForRemoteStream(pageB);
 
-			// Hover over remote stream - float button should NOT appear
-			await hoverStream(pageB, '.OV_stream_video.remote');
-			await expect(pageB.locator('#float-btn')).toHaveCount(0);
-
-			// Hover over local stream - float button should appear
-			await hoverStream(pageB, '.OV_stream_video.local');
-			await expect(pageB.locator('#float-btn')).toBeVisible();
+			await expect(pageB.locator('.remote-participant #float-btn').first()).toBeVisible();
+			await expect(localCameraStream(pageB).locator('#float-btn')).toBeVisible();
 
 			await pageB.close();
 		});
 
-		test('should NOT show the FLOAT button on the local SCREEN SHARE tile', async ({ page }) => {
+		test('should offer detachment on the local SCREEN SHARE tile', async ({ page }) => {
 			await openMeeting(page, accessUrl, { videoEnabled: true, audioEnabled: true });
 			await startScreensharing(page);
 			await expectScreenShareCount(page, 1);
 
-			// The local screen-share tile must not offer float/dock — that's a camera self-view affordance.
+			// Screen and camera share the same window controls.
 			const screenContainer = page.locator('.local_participant.OV_screen').first();
 			await expect(screenContainer).toBeVisible({ timeout: 10_000 });
 			await screenContainer.hover();
-			await expect(screenContainer.locator('#float-btn')).toHaveCount(0);
+			await expect(screenContainer.locator('#float-btn')).toBeVisible();
 
 			// …but the local CAMERA tile still shows it.
 			const cameraContainer = page.locator('.local_participant:not(.OV_screen)').first();
@@ -464,8 +459,8 @@ test.describe('Stream E2E Tests', () => {
 				expect(floatingBox!.x + floatingBox!.width).toBeCloseTo(layoutBox!.x + layoutBox!.width - 5, -1);
 				expect(floatingBox!.x).toBeGreaterThan(layoutBox!.x + 100);
 				expect(floatingBox!.y + floatingBox!.height).toBeCloseTo(layoutBox!.y + layoutBox!.height, -1);
-				// Floats at the minimum allowed size (~160px wide).
-				expect(floatingBox!.width).toBeCloseTo(160, -1);
+				// The common window shell starts at 320px wide.
+				expect(floatingBox!.width).toBeCloseTo(320, -1);
 				expect(floatingBox!.height).toBeGreaterThan(0);
 			}).toPass({ timeout: 8_000, intervals: [200, 300, 500, 1000] });
 
@@ -956,23 +951,21 @@ test.describe('Stream E2E Tests', () => {
 			await page.close();
 		});
 
-		test('should maintain the 16:9 aspect ratio after resizing the floating video', async ({ page }) => {
+		test('should resize the floating video width independently of its height', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
+			const before = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
 
 			await resizeStream(page, 'resize-se', 100, 0);
 
 			const box = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
-
-			const ratio = box.width / box.height;
-			const expectedRatio = 16 / 9;
-			// Allow 5% tolerance
-			expect(Math.abs(ratio - expectedRatio) / expectedRatio).toBeLessThan(0.05);
+			expect(box.width).toBeGreaterThan(before.width);
+			expect(box.height).toBeCloseTo(before.height, 0);
 
 			await page.close();
 		});
 
-		test('should stop growing the floating video at 90% of the layout width', async ({ page }) => {
+		test('should keep a resized floating video within the layout width', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
 			await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
@@ -983,12 +976,13 @@ test.describe('Stream E2E Tests', () => {
 
 			const box = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
 			const layout = await getElementBoundingBox(page, '#layout');
-			expect(box.width).toBeCloseTo(layout!.width * 0.9, -1);
+			expect(box.width).toBeLessThanOrEqual(layout!.width + 1);
+			expect(box.x).toBeGreaterThanOrEqual(layout!.x - 1);
 
 			await page.close();
 		});
 
-		test('should RESET the floating video size to default after dock and re-float', async ({ page }) => {
+		test('should retain the floating video size after reattach and re-float', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
 
@@ -1005,76 +999,52 @@ test.describe('Stream E2E Tests', () => {
 			await dockStream(page);
 			await floatStream(page);
 
-			// Size should be back to the default minimum (~160px wide)
 			const resetBox = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
-			expect(Math.abs(resetBox.width - defaultBox.width)).toBeLessThan(20);
-			expect(Math.abs(resetBox.height - defaultBox.height)).toBeLessThan(20);
+			expect(resetBox.width).toBeCloseTo(resizedBox.width, 0);
+			expect(resetBox.height).toBeCloseTo(resizedBox.height, 0);
 
 			await page.close();
 		});
 	});
 
 	test.describe('Stream UI controls - Floating video with captions enabled', () => {
-		// Enabling live captions renders the <ov-meeting-captions> footer, which reserves a
-		// fixed-height band at the bottom of the layout and shrinks the smart-layout grid
-		// (#layout). The floating (PiP) local video must still be draggable across the WHOLE
-		// layout area (#layout-container) — including OVER the captions band — exactly like it
-		// is when captions are disabled. Enabling captions relies on the global captions flag
-		// and an AI captions assistant, both environment-dependent, so mockCaptionsBackend()
-		// stubs those backend calls to make the flow deterministic.
+		// Floating windows stay in the workspace above the captions footer.
 
 		const bottom = (b: LayoutBox): number => b.y + b.height;
 		const right = (b: LayoutBox): number => b.x + b.width;
 
-		test('should let the floating LOCAL video reach the bottom-RIGHT corner over the captions footer', async ({
-			page
-		}) => {
+		test('should contain the floating LOCAL video at the bottom-RIGHT above captions', async ({ page }) => {
 			const { roomId: captionsRoomId, layoutBox, gridBox } = await openFloatingWithCaptions(page);
 			createdRoomIds.push(captionsRoomId);
 
-			// Over-target well past the bottom-right corner of the FULL layout so CDK clamps the
-			// tile flush to that boundary.
+			// Releasing beyond the workspace clamps the window back into its bounds.
 			await dragStream(page, '.local_participant', right(layoutBox) + 400, bottom(layoutBox) + 400);
 			await page.waitForTimeout(500);
 
 			const tileBox = await getElementBoundingBox(page, '.local_participant .OV_stream_video.local');
 			expect(tileBox).not.toBeNull();
 
-			// Core assertion: the tile is dragged far BELOW the caption-shrunk grid, i.e. down into
-			// the captions band. Before the fix its boundary was the grid (#layout), so it stayed
-			// pinned at/above the grid bottom and this failed.
-			expect(bottom(tileBox!)).toBeGreaterThan(bottom(gridBox) + 100);
-			// It reaches (near) the very bottom of the full layout area — the tile is clamped
-			// inside the boundary so its bottom lands within roughly one tile-height of the edge
-			// (the captions footer reflow leaves a small, environment-dependent slack).
-			expect(bottom(tileBox!)).toBeGreaterThan(bottom(layoutBox) - 100);
-			// …and the right edge of the full layout area.
-			expect(right(tileBox!)).toBeGreaterThan(right(layoutBox) - 20);
+			expect(bottom(tileBox!)).toBeLessThanOrEqual(bottom(gridBox) + 2);
+			expect(right(tileBox!)).toBeLessThanOrEqual(right(gridBox) + 2);
+			expect(right(tileBox!)).toBeGreaterThan(right(gridBox) - 20);
 
 			await page.close();
 		});
 
-		test('should let the floating LOCAL video reach the bottom-LEFT corner over the captions footer', async ({
-			page
-		}) => {
+		test('should contain the floating LOCAL video at the bottom-LEFT above captions', async ({ page }) => {
 			const { roomId: captionsRoomId, layoutBox, gridBox } = await openFloatingWithCaptions(page);
 			createdRoomIds.push(captionsRoomId);
 
-			// Over-target well past the bottom-left corner of the FULL layout so CDK clamps the
-			// tile flush to that boundary.
+			// Releasing beyond the workspace clamps the window back into its bounds.
 			await dragStream(page, '.local_participant', layoutBox.x - 400, bottom(layoutBox) + 400);
 			await page.waitForTimeout(500);
 
 			const tileBox = await getElementBoundingBox(page, '.local_participant .OV_stream_video.local');
 			expect(tileBox).not.toBeNull();
 
-			expect(bottom(tileBox!)).toBeGreaterThan(bottom(gridBox) + 100);
-			expect(bottom(tileBox!)).toBeGreaterThan(bottom(layoutBox) - 100);
-			// …and on the LEFT side of the layout. We assert the left half rather than the exact
-			// left edge: with the captions footer the layout area can reflow partly off-screen to
-			// the left, so the pointer (clamped to the viewport) cannot always reach the exact edge,
-			// but the tile clearly lands in the left half — the opposite corner from the RIGHT test.
-			expect(right(tileBox!)).toBeLessThan(layoutBox.x + layoutBox.width / 2);
+			expect(bottom(tileBox!)).toBeLessThanOrEqual(bottom(gridBox) + 2);
+			expect(tileBox!.x).toBeGreaterThanOrEqual(gridBox.x - 2);
+			expect(tileBox!.x).toBeLessThan(gridBox.x + gridBox.width / 2);
 
 			await page.close();
 		});

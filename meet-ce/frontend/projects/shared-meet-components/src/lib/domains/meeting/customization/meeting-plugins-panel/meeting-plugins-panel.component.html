@@ -1,0 +1,47 @@
+<div class="panel-container" id="plugins-container">
+	<div class="panel-header-container">
+		<mat-icon class="panel-icon">extension</mat-icon>
+		<h3 class="panel-title">{{ 'PLUGINS.TITLE' | translate }}</h3>
+		<button
+			class="panel-close-button"
+			type="button"
+			[attr.aria-label]="'PANEL.CLOSE' | translate"
+			mat-icon-button
+			[matTooltip]="'PANEL.CLOSE' | translate"
+			(click)="panels.closePanel()"
+		>
+			<mat-icon>close</mat-icon>
+		</button>
+	</div>
+
+	<div class="scrollable" aria-live="polite">
+		@if (loading()) {
+			<div class="state-message"><mat-spinner diameter="28" />{{ 'PLUGINS.LOADING' | translate }}</div>
+		} @else if (loadFailed()) {
+			<div class="state-message error-state">
+				<mat-icon>error_outline</mat-icon>
+				<span>{{ 'PLUGINS.LOAD_FAILED' | translate }}</span>
+				<button mat-stroked-button type="button" (click)="load()">{{ 'PLUGINS.RETRY' | translate }}</button>
+			</div>
+		} @else {
+			<section class="plugin-section" aria-labelledby="available-plugins-title">
+				<h4 id="available-plugins-title">{{ 'PLUGINS.AVAILABLE' | translate }}</h4>
+				@if (plugins().length === 0) {
+					<p class="empty-message">{{ 'PLUGINS.EMPTY_CATALOG' | translate }}</p>
+				}
+				@for (plugin of plugins(); track plugin.id) {
+					<article class="plugin-row">
+						<div class="plugin-copy">
+							<div class="plugin-name">
+								<mat-icon aria-hidden="true">extension</mat-icon>
+								<strong>{{ plugin.name }}</strong>
+							</div>
+							<p>{{ plugin.description }}</p>
+						</div>
+						<button mat-button type="button" disabled>{{ 'PLUGINS.UNAVAILABLE' | translate }}</button>
+					</article>
+				}
+			</section>
+		}
+	</div>
+</div>

@@ -1,0 +1,144 @@
+:host {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	border-radius: var(--ov-surface-radius, 8px);
+	background: var(--ov-surface-color);
+	color: var(--ov-text-primary-color);
+}
+
+:host(.OV_floating) {
+	left: 0 !important;
+	top: 0 !important;
+	width: var(--window-width) !important;
+	height: var(--window-height) !important;
+	z-index: 1000;
+	transition: none !important;
+	box-shadow: 0 4px 20px #0005;
+}
+
+:host(.window-active) {
+	z-index: 1001;
+}
+:host(.OV_ignored) {
+	display: none;
+}
+
+.window-header {
+	display: flex;
+	align-items: center;
+	flex: 0 0 36px;
+	min-width: 0;
+	background: var(--ov-surface-color);
+}
+
+.window-handle {
+	flex: 1;
+	min-width: 0;
+	align-self: stretch;
+	border: 0;
+	padding: 0 10px;
+	background: transparent;
+	color: inherit;
+	text-align: start;
+	touch-action: none;
+	cursor: grab;
+	font: inherit;
+
+	span {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	&:disabled {
+		cursor: default;
+		opacity: 1;
+	}
+	&:active:not(:disabled) {
+		cursor: grabbing;
+	}
+}
+
+.window-header .mat-mdc-icon-button {
+	--mdc-icon-button-state-layer-size: 32px;
+	--mat-icon-button-touch-target-display: none;
+	width: 32px;
+	height: 32px;
+	padding: 4px;
+}
+
+.window-body {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+}
+.window-body > ::ng-deep * {
+	height: 100%;
+}
+
+.resize-handle {
+	position: absolute;
+	z-index: 3;
+	width: 18px;
+	height: 18px;
+	border: 0;
+	padding: 0;
+	background: transparent;
+	touch-action: none;
+
+	&::after {
+		content: '';
+		position: absolute;
+		inset: 5px;
+		border-color: var(--ov-text-primary-color);
+		border-style: solid;
+	}
+	&.resize-nw {
+		top: 0;
+		left: 0;
+		cursor: nw-resize;
+		&::after {
+			border-width: 2px 0 0 2px;
+		}
+	}
+	&.resize-ne {
+		top: 0;
+		right: 0;
+		cursor: ne-resize;
+		&::after {
+			border-width: 2px 2px 0 0;
+		}
+	}
+	&.resize-sw {
+		bottom: 0;
+		left: 0;
+		cursor: sw-resize;
+		&::after {
+			border-width: 0 0 2px 2px;
+		}
+	}
+	&.resize-se {
+		bottom: 0;
+		right: 0;
+		cursor: se-resize;
+		&::after {
+			border-width: 0 2px 2px 0;
+		}
+	}
+}
+
+button:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: -3px;
+}
+.interaction-shield {
+	position: absolute;
+	inset: 36px 0 0;
+	z-index: 2;
+}
