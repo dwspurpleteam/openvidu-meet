@@ -1,4 +1,8 @@
-<ov-base-layout [ovRemoteStreams]="visibleRemoteStreams()" [externalAdditionalElements]="projectedAdditionalElements()">
+<ov-base-layout
+	[ovRemoteStreams]="visibleRemoteStreams()"
+	[externalAdditionalElements]="projectedAdditionalElements()"
+	[pluginWindows]="pluginWindows()"
+>
 	@if (shouldShowHiddenParticipantsIndicator() && !showTopBarHiddenParticipantsIndicator()) {
 		<ng-container *ovLayoutAdditionalElements="'bottom'">
 			<ov-hidden-participants-indicator

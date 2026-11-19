@@ -201,7 +201,8 @@ describe('MeetingEventsService (reconnection view state)', () => {
 			'dockLocalCameraVideo',
 			'floatLocalCameraVideo',
 			'unpinAllStreams',
-			'toggleStreamPinned',
+			'pinStreamIfInGrid',
+			'clearWindow',
 			'recordScreenSharePublication',
 			'clearScreenSharePublication',
 			'setLastScreenPinned'
@@ -425,7 +426,8 @@ describe('MeetingEventsService (the room events it binds to)', () => {
 			'dockLocalCameraVideo',
 			'floatLocalCameraVideo',
 			'unpinAllStreams',
-			'toggleStreamPinned',
+			'pinStreamIfInGrid',
+			'clearWindow',
 			'recordScreenSharePublication',
 			'clearScreenSharePublication',
 			'setLastScreenPinned'
@@ -518,7 +520,7 @@ describe('MeetingEventsService (the room events it binds to)', () => {
 		);
 
 		expect(streamLayoutService.unpinAllStreams).toHaveBeenCalled();
-		expect(streamLayoutService.toggleStreamPinned).toHaveBeenCalledWith('TR_screen');
+		expect(streamLayoutService.pinStreamIfInGrid).toHaveBeenCalledWith('TR_screen');
 		expect(streamLayoutService.recordScreenSharePublication).toHaveBeenCalledWith('TR_screen', jasmine.any(Number));
 	});
 

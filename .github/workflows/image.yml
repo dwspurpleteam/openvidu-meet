@@ -1,0 +1,16 @@
+name: delivery
+
+on:
+  push:
+    branches: [vareonix/main, dev]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    uses: dwspurpleteam/.github/.github/workflows/image.yml@main
+    with:
+      service: meet
+    secrets: inherit

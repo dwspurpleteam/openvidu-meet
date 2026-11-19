@@ -243,7 +243,7 @@ export class ParticipantModel {
 				isScreenStream: true,
 				streamId: screenStreamId,
 				isPinned: this.viewState?.isStreamPinned(screenStreamId) ?? false,
-				isFloating: false,
+				isFloating: this.viewState?.isStreamFloating(screenStreamId) ?? false,
 				isMutedForcibly: this.viewState?.isScreenStreamMuted(this.sid) ?? false,
 				zoom: this.resolveScreenZoom(screenStreamId)
 			});

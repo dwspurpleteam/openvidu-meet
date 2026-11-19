@@ -3,7 +3,6 @@
 		<ov-smart-layout
 			[ovSmartLayoutAllowed]="showLayoutSelector()"
 			[ovShowHiddenParticipantsIndicator]="!shouldShowOverlay()"
-			[class.withFooter]="areCaptionsEnabledByUser()"
 			(hiddenParticipantsIndicatorClicked)="toggleParticipantsPanel()"
 		>
 			<ng-container *ovLayoutAdditionalElements>

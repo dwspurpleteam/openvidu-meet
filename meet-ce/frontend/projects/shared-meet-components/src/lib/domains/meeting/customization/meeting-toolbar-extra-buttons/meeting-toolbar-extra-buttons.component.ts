@@ -9,6 +9,7 @@ import { MeetingCaptionsService } from '../../services/meeting-captions.service'
 import { MeetingContextService } from '../../services/meeting-context.service';
 import { MeetingHandService } from '../../services/meeting-hand.service';
 import { MeetingToolbarCopyLinkButtonComponent } from '../meeting-toolbar-copy-link-button/meeting-toolbar-copy-link-button.component';
+import { PanelService } from '../../openvidu-components/services/panel/panel.service';
 import { LoggerService } from '../../../../shared/services/logger.service';
 
 /**
@@ -29,6 +30,12 @@ import { LoggerService } from '../../../../shared/services/logger.service';
 	]
 })
 export class MeetingToolbarExtraButtonsComponent {
+	readonly pluginPanels = inject(PanelService);
+	readonly pluginsOpened = computed(() => {
+		const panel = this.pluginPanels.panelOpened();
+		return panel.isOpened && panel.panelType === 'plugins';
+	});
+
 	protected meetingContextService = inject(MeetingContextService);
 	protected captionService = inject(MeetingCaptionsService);
 	protected handService = inject(MeetingHandService);
