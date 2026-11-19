@@ -2,7 +2,7 @@ name: delivery
 
 on:
   push:
-    branches: [vareonix/main]
+    branches: [vareonix/main, dev]
 
 permissions:
   contents: read
