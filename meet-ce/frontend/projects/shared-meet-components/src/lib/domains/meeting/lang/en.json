@@ -348,6 +348,12 @@
 		"SYNC_FAILED": "Plugin state could not be synchronized.",
 		"STOP_FAILED": "The plugin could not be disconnected.",
 		"EMPTY_CATALOG": "No plugins are listed.",
+		"CHOOSE_VERSION": "Choose version",
+		"VERSION": "Version",
+		"LOADING_VERSIONS": "Loading versions…",
+		"VERSIONS_FAILED": "Plugin versions could not be loaded.",
+		"NO_VERSIONS": "No version has been published.",
+		"IFRAME_UNAVAILABLE": "This plugin's interface cannot be opened in the meeting.",
 		"STATUS": {
 			"AVAILABLE": "Available",
 			"ACTIVATING": "Activating…",

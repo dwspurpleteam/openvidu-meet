@@ -1,6 +1,7 @@
 @if (lkRoom()) {
 	<div class="main-container" [class.withFooter]="areCaptionsEnabledByUser()">
 		<ov-smart-layout
+			[pluginWindows]="pluginWindows()"
 			[ovSmartLayoutAllowed]="showLayoutSelector()"
 			[ovShowHiddenParticipantsIndicator]="!shouldShowOverlay()"
 			(hiddenParticipantsIndicatorClicked)="toggleParticipantsPanel()"

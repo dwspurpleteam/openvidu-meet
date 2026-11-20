@@ -348,6 +348,12 @@
 		"SYNC_FAILED": "De pluginstatus kon niet worden gesynchroniseerd.",
 		"STOP_FAILED": "De plugin kon niet worden losgekoppeld.",
 		"EMPTY_CATALOG": "Geen plugins in de catalogus.",
+		"CHOOSE_VERSION": "Versie kiezen",
+		"VERSION": "Versie",
+		"LOADING_VERSIONS": "Versies laden…",
+		"VERSIONS_FAILED": "De pluginversies konden niet worden geladen.",
+		"NO_VERSIONS": "Er is nog geen versie gepubliceerd.",
+		"IFRAME_UNAVAILABLE": "De interface van deze plugin kan niet worden geopend in de vergadering.",
 		"STATUS": {
 			"AVAILABLE": "Beschikbaar",
 			"ACTIVATING": "Activeren…",
