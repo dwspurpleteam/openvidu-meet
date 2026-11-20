@@ -321,7 +321,6 @@
 		"VERSIONS_FAILED": "プラグインのバージョンを取得できませんでした。",
 		"NO_VERSIONS": "公開済みのバージョンはありません。",
 		"IFRAME_UNAVAILABLE": "この会議では、このプラグインの画面を開けません。",
-		"MOCK_DESCRIPTION": "独立したデモ用の iframe でプラグインの有効化をシミュレートします。",
 		"STATUS": {
 			"AVAILABLE": "利用可能",
 			"ACTIVATING": "有効化中…",

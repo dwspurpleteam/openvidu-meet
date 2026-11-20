@@ -30,27 +30,13 @@ get:
                         properties:
                             mode:
                                 type: string
-                                enum: [disabled, manager, mock]
+                                enum: [disabled, manager]
                             canActivate:
                                 type: boolean
                             activations:
                                 type: array
                                 items:
                                     $ref: ./activation.yaml
-                            mockPlugin:
-                                description: Demo fixture enabled explicitly on the Meet server.
-                                type: object
-                                required: [id, name, version]
-                                properties:
-                                    id:
-                                        type: string
-                                    name:
-                                        type: string
-                                    version:
-                                        type: string
-                            managerStatusUnavailable:
-                                type: boolean
-                                description: The response contains only demo status because the Manager status request failed.
         '401':
             description: Missing or invalid room member token.
         '403':
@@ -101,7 +87,7 @@ post:
         '403':
             description: The caller is outside the room or is not a connected moderator.
         '404':
-            description: The meeting or participant no longer exists, or the mock version is unknown.
+            description: The meeting or participant no longer exists.
         '409':
             description: An activation is already being registered or a retry must use the original version.
         '422':

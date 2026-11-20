@@ -15,11 +15,11 @@ describe('PluginIframeWindowComponent', () => {
 		expect(fixture.nativeElement.querySelector('iframe')).toBe(frame);
 	});
 
-	it('only creates a real iframe for an external HTTPS URL without credentials', () => {
+	it('rejects URLs without HTTPS or with credentials', () => {
 		const fixture = TestBed.createComponent(PluginIframeWindowComponent);
 
 		for (const url of [
-			location.origin + '/plugin',
+			'http://plugins.example.invalid/notes',
 			'javascript:alert(1)',
 			'https://user:secret@plugins.example.invalid'
 		]) {
@@ -29,13 +29,14 @@ describe('PluginIframeWindowComponent', () => {
 		}
 	});
 
-	it('renders the demo in a fully sandboxed iframe without an external URL', () => {
+	it('renders an HTTPS plugin iframe with scripts and an opaque origin', () => {
 		const fixture = TestBed.createComponent(PluginIframeWindowComponent);
-		fixture.componentRef.setInput('plugin', { id: 'plugin:demo', title: 'Demo', mock: true });
+		const url = 'https://calls.example.invalid/apps/plugin-attendance/?callId=RM_one';
+		fixture.componentRef.setInput('plugin', { id: 'plugin:one', title: 'Attendance', url });
 		fixture.detectChanges();
 		const frame: HTMLIFrameElement = fixture.nativeElement.querySelector('iframe');
-		expect(frame.getAttribute('sandbox')).toBe('');
-		expect(frame.hasAttribute('src')).toBeFalse();
-		expect(frame.srcdoc).toContain('Demo plugin is active');
+		expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+		expect(frame.referrerPolicy).toBe('no-referrer');
+		expect(frame.src).toBe(url);
 	});
 });

@@ -1,6 +1,6 @@
 # Интеграция каталога и плагинов
 
-Панель Plugins загружает настоящий каталог Plugin Registry. При настроенном Plugin Manager модератор выбирает опубликованную версию и запускает её на звонок. Подключение Manager, локальная проверка с mock и порядок обновления описаны в [plugin-activation.md](plugin-activation.md).
+Панель **Plugins** загружает каталог из реестра плагинов. Когда подключён сервис управления плагинами, модератор может выбрать опубликованную версию и запустить её для текущего звонка. Настройка сервиса и сквозная проверка плагина посещаемости описаны в [инструкции по активации](plugin-activation.md).
 
 ## Как загружается каталог
 
@@ -8,14 +8,14 @@
 MeetingPluginsPanelComponent
   → RuntimeConfigService.isReadyForRequests()
   → PluginCatalogService.list(page, limit)
-  → GET <origin сервера Meet>/v1/plugins?page=1&limit=20
+  → GET <адрес сервера Meet>/v1/plugins?page=1&limit=20
   → следующие страницы до totalPages
   → отображение name и description с ключом id
 ```
 
-Адрес строится от `RuntimeConfigService.serverBaseUrl()`, а в обычной SPA — от `window.location.origin`. Маршруты `/v1/plugins` и `/v1/plugins/{pluginId}/versions` находятся в корне origin. Registry возвращает `items` и `totalPages`, нумерация начинается с 1. Версии загружаются при выборе конкретного плагина. У записи без опубликованных версий панель показывает соответствующее сообщение. [Спецификация Registry](../../specs/specs/plugin-service-architecture/spec-plugin-registry.md).
+Адрес строится от `RuntimeConfigService.serverBaseUrl()`, а в обычной SPA — от `window.location.origin`. Маршруты `/v1/plugins` и `/v1/plugins/{pluginId}/versions` доступны от корня сервера. Реестр возвращает `items` и `totalPages`. Нумерация страниц начинается с 1. Версии загружаются при выборе конкретного плагина. У записи без опубликованных версий панель показывает соответствующее сообщение. [Спецификация реестра плагинов](https://github.com/dwspurpleteam/specs/blob/main/specs/plugin-service-architecture/spec-plugin-registry.md).
 
-`PluginCatalogService` использует отдельный HTTP-клиент без интерсепторов Meet. Заголовки авторизации Meet в Registry не отправляются. `withCredentials: true` позволяет браузеру передавать разрешённые cookie, включая выбор окружения ingress. При ошибке любой страницы панель позволяет повторить загрузку. Во внешнем webcomponent origin Registry остаётся origin сервера Meet. Разрешения CORS и cookie должны соответствовать конфигурации окружения. [Развёртывание](../../deployer/README.md).
+`PluginCatalogService` использует отдельный HTTP-клиент без перехватчиков Meet. Реестр получает запросы без заголовков авторизации Meet. `withCredentials: true` позволяет браузеру передавать разрешённые cookie, в том числе для выбора окружения на входном прокси. При ошибке любой страницы панель позволяет повторить загрузку. Веб-компонент на стороннем сайте обращается к реестру по адресу сервера Meet. Разрешения CORS и cookie должны соответствовать конфигурации окружения. [Развёртывание](https://github.com/dwspurpleteam/deployer/blob/main/README.md).
 
 ## Состояние в звонке
 
@@ -27,4 +27,4 @@ MeetingPluginsPanelComponent
 | `customization/meeting-custom-layout/`  | Подача `pluginWindows` в Smart Layout                            |
 | `services/plugin-events.service.ts`     | Приём серверных `plugin.event.v1`                                |
 
-`PluginEventsService` принимает серверные пакеты без participant и проверяет JSON, размер до 15 KiB, `callId = Room.sid` и поля `activationId`, `name`, `data`. Подписка очищается при смене комнаты. Статус активации сейчас приходит из внутреннего HTTP API Meet. Привязка результатов к iframe зависит от контракта дочернего bridge. [Плавающие окна и iframe](floating-windows-and-plugin-integration.md).
+`PluginEventsService` принимает серверные пакеты без `participant` и проверяет JSON, размер до 15 КиБ, `callId = Room.sid` и поля `activationId`, `name`, `data`. Подписка очищается при смене комнаты. Статус активации сейчас приходит из внутреннего HTTP API Meet. Привязка результатов к iframe зависит от протокола обмена сообщениями между Meet и плагином. [Плавающие окна и iframe](floating-windows-and-plugin-integration.md).

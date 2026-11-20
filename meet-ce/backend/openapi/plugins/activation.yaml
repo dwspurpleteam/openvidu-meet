@@ -14,7 +14,7 @@ properties:
     failureCode:
         type: [string, 'null']
     ui:
-        description: Embed information when the activation is active and has a valid external UI URL.
+        description: Embed information when the activation is active and has a valid HTTPS UI URL.
         type: [object, 'null']
         required: [title, url]
         properties:
@@ -23,3 +23,4 @@ properties:
             url:
                 type: string
                 format: uri
+                description: Plugin UI URL with the current LiveKit Room SID in the callId query parameter.

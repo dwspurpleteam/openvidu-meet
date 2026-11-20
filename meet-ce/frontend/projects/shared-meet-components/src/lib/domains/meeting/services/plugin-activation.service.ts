@@ -26,11 +26,9 @@ interface Activation {
 }
 
 interface Snapshot {
-	mode: 'disabled' | 'manager' | 'mock';
+	mode: 'disabled' | 'manager';
 	canActivate: boolean;
 	activations: Activation[];
-	mockPlugin?: { id: string; version: string; name: string };
-	managerStatusUnavailable?: boolean;
 }
 
 interface Call {
@@ -53,24 +51,15 @@ export class PluginActivationService {
 	private readonly failedSync = signal(false);
 	private revision = 0;
 
-	readonly mode = computed(() => this.snapshot()?.mode ?? 'disabled');
 	readonly canActivate = computed(() => this.snapshot()?.canActivate ?? false);
-	readonly mockPlugin = computed(() => this.snapshot()?.mockPlugin);
 	readonly syncFailed = this.failedSync.asReadonly();
 	readonly activations = computed(() => new Map(this.snapshot()?.activations.map((item) => [item.pluginId, item])));
 	readonly windows = computed(() => {
 		const windows: PluginWindow[] = [];
 
 		for (const item of this.activations().values()) {
-			if (item.state !== 'ACTIVE') continue;
-
-			const id = 'plugin:' + item.activationId;
-			const mock = this.mockPlugin();
-
-			if (mock?.id === item.pluginId) {
-				windows.push({ id, title: mock.name, mock: true });
-			} else if (item.ui && getPluginIframeUrl(item.ui.url)) {
-				windows.push({ id, ...item.ui });
+			if (item.state === 'ACTIVE' && item.ui && getPluginIframeUrl(item.ui.url)) {
+				windows.push({ id: 'plugin:' + item.activationId, ...item.ui });
 			}
 		}
 
@@ -195,14 +184,8 @@ export class PluginActivationService {
 			);
 
 			if (current() && this.call() === call && this.revision === revision) {
-				if (snapshot.managerStatusUnavailable) {
-					const demoId = snapshot.mockPlugin?.id;
-					const retained = this.snapshot()?.activations.filter((item) => item.pluginId !== demoId) ?? [];
-					snapshot.activations = [...retained, ...snapshot.activations];
-				}
-
 				this.apply(snapshot);
-				this.failedSync.set(!!snapshot.managerStatusUnavailable);
+				this.failedSync.set(false);
 			}
 		} catch (error) {
 			if (!current()) return;

@@ -14,7 +14,7 @@ import { BaseLayoutComponent } from './base-layout.component';
 	template: `<div style="width:700px;height:400px"><ov-base-layout [pluginWindows]="plugins()" /></div>`
 })
 class TestHost {
-	readonly plugins = signal([{ id: 'plugin:fixture', title: 'Transcript', mock: true as const }]);
+	readonly plugins = signal([{ id: 'plugin:fixture', title: 'Transcript', url: 'https://plugins.example.invalid/' }]);
 }
 
 describe('BaseLayoutComponent window dock', () => {

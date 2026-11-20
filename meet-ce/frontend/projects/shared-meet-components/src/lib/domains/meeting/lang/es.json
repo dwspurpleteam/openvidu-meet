@@ -321,7 +321,6 @@
 		"VERSIONS_FAILED": "No se pudieron cargar las versiones del plugin.",
 		"NO_VERSIONS": "No se ha publicado ninguna versión.",
 		"IFRAME_UNAVAILABLE": "La interfaz de este plugin no se puede abrir en la reunión.",
-		"MOCK_DESCRIPTION": "Activación simulada con un iframe de demostración independiente.",
 		"STATUS": {
 			"AVAILABLE": "Disponible",
 			"ACTIVATING": "Activando…",

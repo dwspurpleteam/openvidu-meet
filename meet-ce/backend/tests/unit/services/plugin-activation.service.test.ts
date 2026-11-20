@@ -5,14 +5,15 @@ import { MEET_ENV } from '../../../src/environment.js';
 import { PluginActivationService } from '../../../src/services/plugin-activation.service.js';
 
 const managerUrl = MEET_ENV.PLUGIN_MANAGER_URL;
-const mockEnabled = MEET_ENV.PLUGIN_ACTIVATION_MOCK;
-const nodeEnv = process.env.NODE_ENV;
 const activationId = '799f032c-0260-4b80-b9ad-7b05ab39a2cb';
-const selection = { pluginId: 'notes', pluginVersion: '1.0.0' };
+const selection = { pluginId: 'attendance', pluginVersion: '1.0.1' };
 const configuration = {
 	...selection,
 	registryId: 'local',
-	manifest: { name: 'Notes', frontend: { 'url-web': 'https://notes.example/' } }
+	manifest: {
+		name: 'Attendance',
+		frontend: { 'url-web': 'https://calls.example/apps/plugin-attendance/?lang=ru&callId=old&callId=stale#top' }
+	}
 };
 const roomId = 'room-1';
 const callId = 'RM_current';
@@ -24,7 +25,6 @@ describe('PluginActivationService', () => {
 
 	beforeEach(() => {
 		MEET_ENV.PLUGIN_MANAGER_URL = 'http://manager.example';
-		MEET_ENV.PLUGIN_ACTIVATION_MOCK = false;
 		role = MeetRoomMemberRole.MODERATOR;
 		sid = callId;
 		const redis = new Map<string, string>();
@@ -51,8 +51,6 @@ describe('PluginActivationService', () => {
 	afterEach(() => {
 		jest.restoreAllMocks();
 		MEET_ENV.PLUGIN_MANAGER_URL = managerUrl;
-		MEET_ENV.PLUGIN_ACTIVATION_MOCK = mockEnabled;
-		process.env.NODE_ENV = nodeEnv;
 	});
 
 	it('rejects a speaker and a stale SID before contacting Manager', async () => {
@@ -103,47 +101,29 @@ describe('PluginActivationService', () => {
 		role = MeetRoomMemberRole.SPEAKER;
 		expect(await service.list(roomId, callId)).toMatchObject({
 			canActivate: false,
-			activations: [{ activationId, state: 'ACTIVE', ui: { title: 'Notes', url: 'https://notes.example/' } }]
-		});
-	});
-
-	it('shares an explicitly enabled production demo with listeners in the same call only', async () => {
-		process.env.NODE_ENV = 'production';
-		MEET_ENV.PLUGIN_MANAGER_URL = '';
-		MEET_ENV.PLUGIN_ACTIVATION_MOCK = true;
-		const fetch = jest.spyOn(globalThis, 'fetch');
-		const now = jest.spyOn(Date, 'now').mockReturnValue(1000);
-		const state = await service.list(roomId, callId);
-		expect(state.mode).toBe('mock');
-		const fixture = state.mockPlugin!;
-		const mockSelection = { pluginId: fixture.id, pluginVersion: fixture.version };
-		const started = await service.activate(roomId, callId, mockSelection);
-		expect(started.state).toBe('ACTIVATING');
-		expect((await service.activate(roomId, callId, mockSelection)).activationId).toBe(started.activationId);
-
-		now.mockReturnValue(2500);
-		role = MeetRoomMemberRole.SPEAKER;
-		expect(await service.list(roomId, callId)).toMatchObject({
-			canActivate: false,
-			activations: [{ activationId: started.activationId, state: 'ACTIVE' }]
+			activations: [
+				{
+					activationId,
+					state: 'ACTIVE',
+					ui: {
+						title: 'Attendance',
+						url: 'https://calls.example/apps/plugin-attendance/?lang=ru&callId=RM_current#top'
+					}
+				}
+			]
 		});
 		sid = 'RM_next';
 		expect(await service.list(roomId, sid)).toMatchObject({ activations: [] });
-		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('keeps the demo off unless enabled explicitly', async () => {
-		process.env.NODE_ENV = 'production';
+	it('disables activation when no Manager is configured', async () => {
 		MEET_ENV.PLUGIN_MANAGER_URL = '';
 		expect(await service.list(roomId, callId)).toEqual({ mode: 'disabled', canActivate: false, activations: [] });
 		await expect(service.activate(roomId, callId, selection)).rejects.toMatchObject({ statusCode: 503 });
 	});
 
-	it('keeps the demo available alongside real plugins when the Manager status request fails', async () => {
-		process.env.NODE_ENV = 'production';
-		MEET_ENV.PLUGIN_ACTIVATION_MOCK = true;
-		const fetch = jest
-			.spyOn(globalThis, 'fetch')
+	it('returns the Manager failure code and reports a later status outage', async () => {
+		jest.spyOn(globalThis, 'fetch')
 			.mockResolvedValueOnce(Response.json(configuration))
 			.mockResolvedValueOnce(Response.json({ activationId }, { status: 202 }))
 			.mockResolvedValueOnce(
@@ -157,21 +137,11 @@ describe('PluginActivationService', () => {
 				})
 			)
 			.mockRejectedValueOnce(new Error('Manager offline'));
-		const { mockPlugin: demo } = await service.list(roomId, callId);
-		const simulated = await service.activate(roomId, callId, { pluginId: demo!.id, pluginVersion: demo!.version });
 		await expect(service.activate(roomId, callId, selection)).resolves.toMatchObject({ activationId });
 		expect(await service.list(roomId, callId)).toMatchObject({
 			mode: 'manager',
-			activations: [
-				{ activationId, state: 'FAILED' },
-				{ activationId: simulated.activationId, pluginId: demo!.id }
-			]
+			activations: [{ activationId, state: 'FAILED', failureCode: 'START_FAILED', ui: null }]
 		});
-		expect(await service.list(roomId, callId)).toMatchObject({
-			mode: 'manager',
-			managerStatusUnavailable: true,
-			activations: [{ activationId: simulated.activationId, pluginId: demo!.id }]
-		});
-		expect(fetch).toHaveBeenCalledTimes(4);
+		await expect(service.list(roomId, callId)).rejects.toMatchObject({ statusCode: 503 });
 	});
 });

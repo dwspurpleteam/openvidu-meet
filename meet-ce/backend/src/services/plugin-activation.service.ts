@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { MEET_ENV } from '../environment.js';
 import { errorInsufficientPermissions, errorNoActiveMeeting, OpenViduMeetError } from '../models/error.model.js';
 import { RedisKeyName, RedisLockName, RedisLockPrefix } from '../models/redis.model.js';
-import { getBaseUrl } from '../utils/url.utils.js';
 import { LiveKitService } from './livekit.service.js';
 import { MeetingService } from './meeting.service.js';
 import { MutexService } from './mutex.service.js';
@@ -43,10 +42,8 @@ const configurationSchema = z.object({
 	})
 });
 
-const mockPlugin = { id: 'meet-activation-demo', version: '1.0.0', name: 'Plugin activation demo' };
 const storageTtl = ms('32 days');
 
-type Mode = 'disabled' | 'manager' | 'mock';
 type State = z.infer<typeof activationStates>;
 type Ui = { title: string; url: string } | null;
 type Selection = { pluginId: string; pluginVersion: string };
@@ -63,7 +60,7 @@ type ManagerRequest = Selection & {
 	};
 };
 type Draft = Selection & { ui: Ui; request: ManagerRequest };
-type Registration = Selection & { ui: Ui; activationId: string; registryId?: string; startedAt: number };
+type Registration = Selection & { ui: Ui; activationId: string; registryId: string };
 type StoredActivation = Draft | Registration;
 type ActivationView = Selection & {
 	activationId: string;
@@ -72,11 +69,9 @@ type ActivationView = Selection & {
 	ui: Ui;
 };
 type ActivationSnapshot = {
-	mode: Mode;
+	mode: 'disabled' | 'manager';
 	canActivate: boolean;
 	activations: ActivationView[];
-	mockPlugin?: typeof mockPlugin;
-	managerStatusUnavailable?: boolean;
 };
 
 @injectable()
@@ -91,29 +86,23 @@ export class PluginActivationService {
 
 	async list(roomId: string, callId: string): Promise<ActivationSnapshot> {
 		const identity = this.requireRoomMember(roomId);
-		const mode = this.mode();
 
-		if (mode === 'disabled') return { mode, canActivate: false, activations: [] };
+		if (!MEET_ENV.PLUGIN_MANAGER_URL) return { mode: 'disabled', canActivate: false, activations: [] };
 
 		const participant = await this.getParticipant(roomId, callId, identity);
-		const [manager, demo] = await Promise.all([
-			mode === 'manager' ? this.listManagerActivations(callId) : { activations: [] },
-			MEET_ENV.PLUGIN_ACTIVATION_MOCK ? this.listActivations('mock', callId) : []
-		]);
+		const stored = await this.read(this.storageKey(callId));
+		const registrations = stored.filter((item): item is Registration => 'activationId' in item);
 		return {
-			mode,
+			mode: 'manager',
 			canActivate: participant.role === MeetRoomMemberRole.MODERATOR,
-			...manager,
-			activations: [...manager.activations, ...demo],
-			...(MEET_ENV.PLUGIN_ACTIVATION_MOCK && { mockPlugin })
+			activations: await Promise.all(registrations.map((item) => this.status(callId, item)))
 		};
 	}
 
 	async activate(roomId: string, callId: string, selection: Selection): Promise<ActivationView> {
 		const identity = this.requireRoomMember(roomId);
-		const mode = MEET_ENV.PLUGIN_ACTIVATION_MOCK && selection.pluginId === mockPlugin.id ? 'mock' : this.mode();
 
-		if (mode === 'disabled') {
+		if (!MEET_ENV.PLUGIN_MANAGER_URL) {
 			throw new OpenViduMeetError('Service Unavailable', 'Plugin activation is disabled', 503);
 		}
 
@@ -121,92 +110,45 @@ export class PluginActivationService {
 
 		if (participant.role !== MeetRoomMemberRole.MODERATOR) throw errorInsufficientPermissions();
 
-		if (
-			mode === 'mock' &&
-			(selection.pluginId !== mockPlugin.id || selection.pluginVersion !== mockPlugin.version)
-		) {
-			throw new OpenViduMeetError('Not Found', 'Mock plugin version not found', 404);
-		}
-
-		const key = this.storageKey(mode, callId);
-		const lock = RedisLockPrefix.BASE + RedisLockName.PLUGIN_ACTIVATIONS + ':' + mode + ':' + callId;
+		const key = this.storageKey(callId);
+		const lock = RedisLockPrefix.BASE + RedisLockName.PLUGIN_ACTIVATIONS + ':manager:' + callId;
 		const view = await this.mutex.withLock(lock, ms('30s'), async () => {
 			const items = await this.read(key);
 			const previous = items.find((item) => item.pluginId === selection.pluginId);
 			const others = items.filter((item) => item.pluginId !== selection.pluginId);
 
 			if (previous && 'activationId' in previous) {
-				const existing = await this.status(mode, callId, previous);
+				const existing = await this.status(callId, previous);
 
 				if (existing.state !== 'FAILED' && existing.state !== 'STOPPED') return existing;
 			}
 
-			let registration: Registration;
+			const draft =
+				previous && 'request' in previous ? previous : await this.prepare(roomId, callId, identity, selection);
 
-			if (mode === 'mock') {
-				registration = { ...selection, ui: null, activationId: randomUUID(), startedAt: Date.now() };
-			} else {
-				const draft =
-					previous && 'request' in previous
-						? previous
-						: await this.prepare(roomId, callId, identity, selection);
-
-				if (draft.pluginVersion !== selection.pluginVersion) {
-					throw new OpenViduMeetError(
-						'Conflict',
-						'Retry the pending registration with the same version',
-						409
-					);
-				}
-
-				// Save the exact request before sending it so a timeout or crash can be retried idempotently.
-				await this.save(key, [...others, draft]);
-				const { activationId } = await this.managerRequest('/v1/activations', registrationSchema, {
-					method: 'POST',
-					body: JSON.stringify(draft.request)
-				});
-				registration = {
-					...selection,
-					activationId,
-					ui: draft.ui,
-					registryId: draft.request.pluginRegistryId,
-					startedAt: Date.now()
-				};
+			if (draft.pluginVersion !== selection.pluginVersion) {
+				throw new OpenViduMeetError('Conflict', 'Retry the pending registration with the same version', 409);
 			}
 
+			// Save the exact request before sending it so a timeout or crash can be retried idempotently.
+			await this.save(key, [...others, draft]);
+			const { activationId } = await this.managerRequest('/v1/activations', registrationSchema, {
+				method: 'POST',
+				body: JSON.stringify(draft.request)
+			});
+			const registration = {
+				...selection,
+				activationId,
+				ui: draft.ui,
+				registryId: draft.request.pluginRegistryId
+			};
 			await this.save(key, [...others, registration]);
-			return this.view(registration, 'ACTIVATING', null);
+			return this.view(registration, callId, 'ACTIVATING', null);
 		});
 
 		if (!view) throw new OpenViduMeetError('Conflict', 'A plugin registration is already in progress', 409);
 
 		return view;
-	}
-
-	private mode(): Mode {
-		if (MEET_ENV.PLUGIN_MANAGER_URL) return 'manager';
-
-		return MEET_ENV.PLUGIN_ACTIVATION_MOCK ? 'mock' : 'disabled';
-	}
-
-	private async listManagerActivations(
-		callId: string
-	): Promise<Pick<ActivationSnapshot, 'activations' | 'managerStatusUnavailable'>> {
-		try {
-			return { activations: await this.listActivations('manager', callId) };
-		} catch (error) {
-			if (!MEET_ENV.PLUGIN_ACTIVATION_MOCK || !(error instanceof OpenViduMeetError) || error.statusCode !== 503) {
-				throw error;
-			}
-
-			return { activations: [], managerStatusUnavailable: true };
-		}
-	}
-
-	private async listActivations(mode: 'manager' | 'mock', callId: string): Promise<ActivationView[]> {
-		const stored = await this.read(this.storageKey(mode, callId));
-		const registrations = stored.filter((item): item is Registration => 'activationId' in item);
-		return Promise.all(registrations.map((item) => this.status(mode, callId, item)));
 	}
 
 	private requireRoomMember(roomId: string): string {
@@ -260,10 +202,9 @@ export class PluginActivationService {
 
 		if (room.sid !== callId) throw errorNoActiveMeeting(roomId);
 
-		const url = this.pluginUiUrl(configuration.manifest.frontend['url-web']);
 		return {
 			...selection,
-			ui: url ? { url, title: configuration.manifest.name } : null,
+			ui: { url: configuration.manifest.frontend['url-web'], title: configuration.manifest.name },
 			request: {
 				...selection,
 				callId,
@@ -280,11 +221,7 @@ export class PluginActivationService {
 		};
 	}
 
-	private async status(mode: 'manager' | 'mock', callId: string, item: Registration): Promise<ActivationView> {
-		if (mode === 'mock') {
-			return this.view(item, Date.now() - item.startedAt >= 1000 ? 'ACTIVE' : 'ACTIVATING', null);
-		}
-
+	private async status(callId: string, item: Registration): Promise<ActivationView> {
 		const status = await this.managerRequest('/v1/activations/' + item.activationId, statusSchema);
 
 		if (
@@ -298,27 +235,30 @@ export class PluginActivationService {
 			throw this.managerUnavailable();
 		}
 
-		return this.view(item, status.state, status.failureCode);
+		return this.view(item, callId, status.state, status.failureCode);
 	}
 
-	private view(item: Registration, state: State, failureCode: string | null): ActivationView {
+	private view(item: Registration, callId: string, state: State, failureCode: string | null): ActivationView {
 		return {
 			pluginId: item.pluginId,
 			pluginVersion: item.pluginVersion,
 			activationId: item.activationId,
 			state,
 			failureCode,
-			ui: state === 'ACTIVE' ? item.ui : null
+			ui: state === 'ACTIVE' ? this.pluginUi(item.ui, callId) : null
 		};
 	}
 
-	private pluginUiUrl(raw: string): string | null {
+	private pluginUi(ui: Ui, callId: string): Ui {
+		if (!ui) return null;
+
 		try {
-			const url = new URL(raw);
-			const meetOrigin = new URL(getBaseUrl()).origin;
-			return url.protocol === 'https:' && url.origin !== meetOrigin && !url.username && !url.password
-				? url.href
-				: null;
+			const url = new URL(ui.url);
+
+			if (url.protocol !== 'https:' || url.username || url.password) return null;
+
+			url.searchParams.set('callId', callId);
+			return { ...ui, url: url.href };
 		} catch {
 			return null;
 		}
@@ -345,8 +285,8 @@ export class PluginActivationService {
 		return new OpenViduMeetError('Service Unavailable', 'Plugin Manager did not return a valid response', 503);
 	}
 
-	private storageKey(mode: 'manager' | 'mock', callId: string): string {
-		return RedisKeyName.PLUGIN_ACTIVATIONS + mode + ':' + callId;
+	private storageKey(callId: string): string {
+		return RedisKeyName.PLUGIN_ACTIVATIONS + 'manager:' + callId;
 	}
 
 	private async read(key: string): Promise<StoredActivation[]> {

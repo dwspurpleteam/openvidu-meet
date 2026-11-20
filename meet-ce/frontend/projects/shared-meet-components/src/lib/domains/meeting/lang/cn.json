@@ -321,7 +321,6 @@
 		"VERSIONS_FAILED": "无法加载插件版本。",
 		"NO_VERSIONS": "尚未发布任何版本。",
 		"IFRAME_UNAVAILABLE": "无法在会议中打开此插件的界面。",
-		"MOCK_DESCRIPTION": "模拟启用插件，并在独立的 iframe 中显示演示界面。",
 		"STATUS": {
 			"AVAILABLE": "可用",
 			"ACTIVATING": "正在启用…",

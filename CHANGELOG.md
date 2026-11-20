@@ -86,9 +86,9 @@ registered on both receives it twice.
 
 #### UI
 
-- Camera, avatar, screen-share and demo plugin iframe tiles can detach, move, resize and minimize to a side dock.
+- Camera, avatar, screen-share and activated plugin iframe tiles can detach, move, resize and minimize to a side dock.
 - Moderators can choose a published plugin version and activate it from the Plugins panel when a Plugin
-  Manager is configured. In-call participants see its status and can view its iframe once it is active.
+  Manager is configured. In-call participants see its status and can view its iframe with the current `callId` once it is active.
 - A status rail above the meeting layout (elapsed meeting time, recording, duration countdown, encryption,
   hidden participants), and notices when a recording starts and stops.
 - A participant who speaks while muted is told, and so is one whose microphone the operating system has

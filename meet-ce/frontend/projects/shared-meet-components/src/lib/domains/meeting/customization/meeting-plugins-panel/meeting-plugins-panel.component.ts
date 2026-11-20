@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -36,12 +36,6 @@ export class MeetingPluginsPanelComponent {
 	protected readonly selection = signal<VersionSelection | null>(null);
 	protected readonly selectedVersion = signal('');
 	protected readonly activationFailed = signal<string | null>(null);
-	protected readonly displayedPlugins = computed(() => {
-		const mock = this.activation.mockPlugin();
-		return mock
-			? [{ ...mock, description: '' }, ...this.plugins().filter(({ id }) => id !== mock.id)]
-			: this.plugins();
-	});
 
 	constructor() {
 		effect(() => {
