@@ -31,6 +31,7 @@ import {
 	capturePeerConnections,
 	countEncodedVideoLayers,
 	countFlowingRemoteVideos,
+	dockStream,
 	expectOnlyVisibleRemoteVideosPlaying,
 	floatStream,
 	getVisibleRemoteParticipantNames,
@@ -1365,6 +1366,7 @@ test.describe('Layout E2E Tests', () => {
 					// Close the layout settings panel before interacting with the layout streams
 					await closeSettingsPanel(pageA);
 					await expectHidden(pageA, '#settings-container');
+					await dockStream(pageA);
 
 					// Pin the visible remote participant: hasPinnedParticipant becomes true
 					// → showTopBarHiddenParticipantsIndicator() returns false → indicator moves into the grid

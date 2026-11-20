@@ -1249,6 +1249,7 @@ test.describe('Stream E2E Tests', () => {
 			try {
 				// Verify A sees 2 remote streams
 				await expect(pageA.locator('.OV_stream.remote')).toHaveCount(2);
+				await dockStream(pageA);
 
 				// Mute first remote stream (should be B)
 				const firstRemote = pageA.locator('.OV_stream.remote').first();
