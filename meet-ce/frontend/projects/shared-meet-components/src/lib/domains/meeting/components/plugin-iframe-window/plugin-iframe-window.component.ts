@@ -7,16 +7,27 @@ export interface PluginWindow {
 	url: string;
 }
 
+export function getPluginIframeUrl(raw: string): string | null {
+	try {
+		const url = new URL(raw);
+		return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+	} catch {
+		return null;
+	}
+}
+
 @Component({
 	selector: 'ov-plugin-iframe-window',
 	template: `
-		<iframe
-			[src]="resourceUrl()"
-			[title]="plugin().title"
-			sandbox="allow-scripts"
-			allow="camera 'none'; microphone 'none'; display-capture 'none'; geolocation 'none'"
-			referrerpolicy="no-referrer"
-		></iframe>
+		@if (resourceUrl(); as url) {
+			<iframe
+				[src]="url"
+				[title]="plugin().title"
+				sandbox="allow-scripts"
+				allow="camera 'none'; microphone 'none'; display-capture 'none'; geolocation 'none'"
+				referrerpolicy="no-referrer"
+			></iframe>
+		}
 	`,
 	styles: `
 		:host {
@@ -35,7 +46,9 @@ export interface PluginWindow {
 export class PluginIframeWindowComponent {
 	private readonly sanitizer = inject(DomSanitizer);
 	readonly plugin = input.required<PluginWindow>();
-	// Only the built-in demo URL is supplied today; registry URLs need validation at the future API boundary.
-	private readonly url = computed(() => this.plugin().url);
-	readonly resourceUrl = computed(() => this.sanitizer.bypassSecurityTrustResourceUrl(this.url()));
+	private readonly url = computed(() => getPluginIframeUrl(this.plugin().url));
+	readonly resourceUrl = computed(() => {
+		const url = this.url();
+		return url ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+	});
 }

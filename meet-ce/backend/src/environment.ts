@@ -18,6 +18,8 @@ dotenv.config({ quiet: true, ...(envPath ? { path: envPath } : {}) });
 
 // Extract environment variables with defaults
 export const MEET_ENV = {
+	PLUGIN_MANAGER_URL: process.env.MEET_PLUGIN_MANAGER_URL?.trim() || '',
+
 	SERVER_PORT: process.env.SERVER_PORT || '6080',
 	SERVER_CORS_ORIGIN: process.env.SERVER_CORS_ORIGIN || '*',
 	SERVER_TRUST_PROXY: process.env.SERVER_TRUST_PROXY || 'true',

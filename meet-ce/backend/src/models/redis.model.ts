@@ -1,6 +1,7 @@
 export const REDIS_KEY_PREFIX = 'ov_meet:';
 
 export const enum RedisKeyName {
+	PLUGIN_ACTIVATIONS = `${REDIS_KEY_PREFIX}plugin_activations:`,
 	//Tracks all currently reserved participant names per room (with TTL for auto-expiration).
 	ROOM_PARTICIPANTS = `${REDIS_KEY_PREFIX}room_participants:`,
 	// Stores released numeric suffixes (per base name) in a sorted set, so that freed numbers
@@ -27,6 +28,7 @@ export const enum RedisLockPrefix {
 }
 
 export const enum RedisLockName {
+	PLUGIN_ACTIVATIONS = 'plugin_activations',
 	RECORDING_ACTIVE = 'recording_active',
 	RECORDING_STOP = 'recording_stop',
 	SCHEDULED_TASK = 'scheduled_task',

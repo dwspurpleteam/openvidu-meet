@@ -315,6 +315,12 @@
 		"SYNC_FAILED": "无法同步插件状态。",
 		"STOP_FAILED": "无法断开插件。",
 		"EMPTY_CATALOG": "目录中没有插件。",
+		"CHOOSE_VERSION": "选择版本",
+		"VERSION": "版本",
+		"LOADING_VERSIONS": "正在加载版本…",
+		"VERSIONS_FAILED": "无法加载插件版本。",
+		"NO_VERSIONS": "尚未发布任何版本。",
+		"IFRAME_UNAVAILABLE": "无法在会议中打开此插件的界面。",
 		"STATUS": {
 			"AVAILABLE": "可用",
 			"ACTIVATING": "正在启用…",

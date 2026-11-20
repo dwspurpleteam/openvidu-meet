@@ -6,11 +6,16 @@ import { RuntimeConfigService } from '../../../shared/services/runtime-config.se
 export interface RegistryPlugin {
 	id: string;
 	name: string;
-	description: string;
+	description: string | null;
 }
 
 interface RegistryPage {
 	items: RegistryPlugin[];
+	totalPages: number;
+}
+
+interface PluginVersionPage {
+	items: { version: string }[];
 	totalPages: number;
 }
 
@@ -20,11 +25,34 @@ export class PluginCatalogService {
 	private readonly runtimeConfig = inject(RuntimeConfigService);
 
 	async list(page = 1, limit = 20): Promise<RegistryPage> {
+		return this.getPage<RegistryPage>('', page, limit);
+	}
+
+	async listVersions(pluginId: string): Promise<string[]> {
+		const versions = new Set<string>();
+		let page = 1;
+		let totalPages: number;
+
+		do {
+			const result = await this.getPage<PluginVersionPage>(
+				'/' + encodeURIComponent(pluginId) + '/versions',
+				page++,
+				20
+			);
+			result.items.forEach(({ version }) => versions.add(version));
+			totalPages = result.totalPages;
+		} while (page <= totalPages);
+
+		return [...versions];
+	}
+
+	private getPage<T>(path: string, page: number, limit: number): Promise<T> {
 		const origin = new URL(this.runtimeConfig.serverBaseUrl() || window.location.origin).origin;
 		return lastValueFrom(
-			this.http.get<RegistryPage>(`${origin}/v1/plugins`, {
+			this.http.get<T>(`${origin}/v1/plugins${path}`, {
 				params: { page, limit },
-				withCredentials: true
+				withCredentials: true,
+				timeout: 5000
 			})
 		);
 	}

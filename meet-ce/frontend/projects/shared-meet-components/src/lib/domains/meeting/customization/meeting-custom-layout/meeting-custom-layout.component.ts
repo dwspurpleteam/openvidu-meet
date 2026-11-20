@@ -4,10 +4,12 @@ import { RuntimeConfigService } from '../../../../shared/services/runtime-config
 import { ShareRoomAccessLinkComponent } from '../../components/share-room-access-link/share-room-access-link.component';
 import { OpenViduComponentsUiModule, PanelService, PanelType } from '../../openvidu-components';
 import { SmartLayoutComponent } from '../../openvidu-components/components/layout/smart-layout/smart-layout.component';
+import { StreamLayoutStateService } from '../../openvidu-components/services/layout/stream-layout-state.service';
 import { RoomAccessLinkService } from '../../services/room-access-link.service';
 import { MeetingCaptionsService } from '../../services/meeting-captions.service';
 import { MeetingContextService } from '../../services/meeting-context.service';
 import { MeetingStateService } from '../../services/meeting-state.service';
+import { PluginActivationService } from '../../services/plugin-activation.service';
 import { MeetingCaptionsComponent } from '../meeting-captions/meeting-captions.component';
 import { MeetingWaitingPanelComponent } from '../meeting-waiting-panel/meeting-waiting-panel.component';
 
@@ -30,6 +32,11 @@ export class MeetingCustomLayoutComponent {
 	protected captionsService = inject(MeetingCaptionsService);
 	protected panelService = inject(PanelService);
 	private readonly runtimeConfigService = inject(RuntimeConfigService);
+	private readonly streamLayout = inject(StreamLayoutStateService);
+	protected readonly pluginWindows = inject(PluginActivationService).windows;
+	private readonly hasVisiblePlugin = computed(() =>
+		this.pluginWindows().some(({ id }) => this.streamLayout.windowPlacement(id).mode !== 'minimized')
+	);
 	constructor() {
 		inject(PluginEventsService);
 	}
@@ -55,6 +62,7 @@ export class MeetingCustomLayoutComponent {
 			!this.isEmbeddedMode() &&
 			this.meetingContextService.meetingUI().showShareAccessLinks &&
 			this.meetingStateService.isAlone() &&
+			!this.hasVisiblePlugin() &&
 			hasPublicSpeakerLink
 		);
 	});
@@ -63,7 +71,9 @@ export class MeetingCustomLayoutComponent {
 	 * Waiting overlay: embedded modes (webcomponent or iframe) only, shown while alone
 	 * in place of the share/copy link overlay (link sharing is handled by the host application).
 	 */
-	shouldShowWaitingOverlay = computed(() => this.isEmbeddedMode() && this.meetingStateService.isAlone());
+	shouldShowWaitingOverlay = computed(
+		() => this.isEmbeddedMode() && this.meetingStateService.isAlone() && !this.hasVisiblePlugin()
+	);
 
 	/** True when either overlay covers the layout (used to hide the hidden-participants indicator). */
 	shouldShowOverlay = computed(() => this.shouldShowLinkOverlay() || this.shouldShowWaitingOverlay());

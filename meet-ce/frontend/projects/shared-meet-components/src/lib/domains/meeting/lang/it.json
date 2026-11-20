@@ -315,6 +315,12 @@
 		"SYNC_FAILED": "Impossibile sincronizzare lo stato dei plugin.",
 		"STOP_FAILED": "Impossibile disconnettere il plugin.",
 		"EMPTY_CATALOG": "Nessun plugin nel catalogo.",
+		"CHOOSE_VERSION": "Scegli versione",
+		"VERSION": "Versione",
+		"LOADING_VERSIONS": "Caricamento delle versioni…",
+		"VERSIONS_FAILED": "Impossibile caricare le versioni del plugin.",
+		"NO_VERSIONS": "Non è stata pubblicata alcuna versione.",
+		"IFRAME_UNAVAILABLE": "Impossibile aprire l’interfaccia di questo plugin nella riunione.",
 		"STATUS": {
 			"AVAILABLE": "Disponibile",
 			"ACTIVATING": "Attivazione…",
