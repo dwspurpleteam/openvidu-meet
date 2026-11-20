@@ -1,5 +1,6 @@
 import { inject, Service, signal } from '@angular/core';
 import { AvailableLangs, LangOption } from '../../models/lang.model';
+import { DEFAULT_LANG } from '../../models/translation-bundle.model';
 import { MeetStorageService } from '../storage.service';
 
 /**
@@ -11,13 +12,17 @@ export const DEFAULT_LANGUAGE_OPTIONS: LangOption[] = [
 	{ name: 'Español', lang: 'es' },
 	{ name: 'Deutsch', lang: 'de' },
 	{ name: 'Français', lang: 'fr' },
-	{ name: '中国', lang: 'cn' },
+	{ name: '中文', lang: 'cn' },
 	{ name: 'हिन्दी', lang: 'hi' },
 	{ name: 'Italiano', lang: 'it' },
 	{ name: '日本語', lang: 'ja' },
-	{ name: 'Dutch', lang: 'nl' },
+	{ name: 'Nederlands', lang: 'nl' },
 	{ name: 'Português', lang: 'pt' }
 ];
+
+const LANGUAGE_SUBTAG_ALIASES: Record<string, AvailableLangs> = { zh: 'cn' };
+
+const BROWSER_LANGUAGE_TAG = 'auto';
 
 /**
  * Single source of truth for the user's selected language across the whole application.
@@ -26,6 +31,10 @@ export const DEFAULT_LANGUAGE_OPTIONS: LangOption[] = [
  * one service, so the preference is shared: pick English in the console and the meeting starts in
  * English too (and vice versa). Each area keeps its own translation files — only the *selected
  * language* is shared, persisted under the existing storage key for backward compatibility.
+ *
+ * An embedding application can ask for a language ({@link setEmbeddedLanguage}): it outranks the stored
+ * preference without replacing it, and the participant can still pick another one unless the
+ * application also hides the selectors ({@link setSelectorVisible}).
  */
 @Service()
 export class LanguageService {
@@ -37,6 +46,11 @@ export class LanguageService {
 	/** Currently selected language option. Scope translation stores react to this. */
 	readonly selectedLanguage = signal<LangOption>(DEFAULT_LANGUAGE_OPTIONS[0]);
 
+	private readonly _selectorVisible = signal(true);
+
+	/** Whether the language selectors are shown, which the embedding application can turn off. */
+	readonly selectorVisible = this._selectorVisible.asReadonly();
+
 	constructor() {
 		this.selectedLanguage.set(this.resolveStoredLanguage());
 	}
@@ -47,12 +61,12 @@ export class LanguageService {
 	 * first).
 	 */
 	setLanguage(lang: AvailableLangs): void {
-		const option = this.availableLanguages().find((o) => o.lang === lang);
+		const option = this.findOption(lang);
 
 		if (!option) return;
 
 		this.selectedLanguage.set(option);
-		this.storageService.setLang(lang);
+		this.storageService.setLang(option.lang);
 	}
 
 	/**
@@ -66,10 +80,42 @@ export class LanguageService {
 		this.selectedLanguage.set(this.resolveStoredLanguage());
 	}
 
-	/** Returns the stored language option, falling back to the first available one. */
+	/**
+	 * Selects the language asked by the embedding application, a BCP 47 tag or `auto` for the
+	 * browser's, without persisting it, or restores the stored preference when `tag` is undefined. An
+	 * unavailable language is ignored.
+	 */
+	setEmbeddedLanguage(tag?: string): void {
+		const option = tag?.toLowerCase() === BROWSER_LANGUAGE_TAG ? this.findBrowserOption() : this.findOption(tag);
+
+		if (tag && !option) {
+			console.warn(`[OpenVidu Meet] Unsupported language "${tag}" ignored.`);
+		}
+
+		this.selectedLanguage.set(option ?? this.resolveStoredLanguage());
+	}
+
+	setSelectorVisible(visible: boolean): void {
+		this._selectorVisible.set(visible);
+	}
+
+	/** The first available language among the browser's preferred ones, or the default language. */
+	private findBrowserOption(): LangOption | undefined {
+		const tags = navigator.languages?.length ? navigator.languages : [navigator.language];
+		return tags.map((tag) => this.findOption(tag)).find(Boolean) ?? this.findOption(DEFAULT_LANG);
+	}
+
+	/** Matches a BCP 47 tag (`es`, `pt-BR`, `zh_Hans`) by its exact code first, then by its language subtag. */
+	private findOption(tag?: string | null): LangOption | undefined {
+		if (!tag) return undefined;
+
+		const normalized = tag.toLowerCase().replace('_', '-');
+		const subtag = normalized.split('-')[0];
+		const byCode = (code: string) => this.availableLanguages().find((o) => o.lang.toLowerCase() === code);
+		return byCode(normalized) ?? byCode(LANGUAGE_SUBTAG_ALIASES[subtag] ?? subtag);
+	}
+
 	private resolveStoredLanguage(): LangOption {
-		const storedLang = this.storageService.getLang();
-		const options = this.availableLanguages();
-		return options.find((o) => o.lang === storedLang) ?? options[0];
+		return this.findOption(this.storageService.getLang()) ?? this.availableLanguages()[0];
 	}
 }

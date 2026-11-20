@@ -2,8 +2,7 @@ name: Frontend Unit Tests
 
 on:
   push:
-    branches: ['**']
-    tags-ignore: ['**']
+    branches: [main]
     paths: &frontend-unit-test-paths
       - 'meet-ce/frontend/**'
       - '!meet-ce/frontend/webcomponent/**'
@@ -12,6 +11,7 @@ on:
       - 'meet.sh'
       - '.github/workflows/frontend-unit-test.yaml'
       - '!**/*.md'
+      - '!meet-ce/backend/**'
   pull_request:
     paths: *frontend-unit-test-paths
   workflow_dispatch:
@@ -26,7 +26,7 @@ permissions:
 jobs:
   unit-test:
     name: Frontend Unit Tests
-    runs-on: ${{ vars.LABEL_WORKER_SELFHOSTED }}
+    runs-on: ubuntu-24.04
     env:
       PLAYWRIGHT_BROWSERS_PATH: /tmp/ms-playwright
     steps:
@@ -39,7 +39,7 @@ jobs:
         with:
           version: 11.8.0
       - name: Install safe-chain
-        uses: OpenVidu/actions/install-safe-chain@070fb73fda8fe7a08e28991b1c2d276f12a009ef # v1.0.22
+        uses: OpenVidu/actions/install-safe-chain@ccd21721ffb48bdeb889526d3a0b496c451ffd48 # v1.0.24
       - name: Checkout OpenVidu Meet
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -52,7 +52,3 @@ jobs:
       - name: Run ESLint
         if: always()
         run: ./meet.sh lint-frontend --skip-install
-
-      - name: Clean up
-        if: always()
-        uses: OpenVidu/actions/cleanup@070fb73fda8fe7a08e28991b1c2d276f12a009ef # v1.0.22

@@ -56,8 +56,7 @@ ordering). `./meet.sh help` lists all commands.
 ```bash
 ./meet.sh install                 # pnpm install for the whole workspace
 ./meet.sh dev                     # all watchers (typings, backend, frontend, API docs)
-./meet.sh dev --testapp           # + testapp on :5080 and webhook bridge on :5081
-./meet.sh dev --webcomponent      # + webcomponent bundle watcher
+./meet.sh dev --testapp           # + testapp on :5080, webhook bridge on :5081, webcomponent bundle watcher
 ./meet.sh build                   # full build, correct order
 ./meet.sh start --prod            # run the built app
 ./meet.sh start-testapp           # testapp only (:5080 + :5081), for the embedding e2e suites
@@ -168,12 +167,18 @@ the OpenAPI sources already use for their own cross-references: `#/operations/<o
 ## Tests, CI and docs
 
 - GitHub workflows in `.github/workflows/` are path-filtered per package (backend unit/integration,
-  frontend unit/e2e, webcomponent unit/e2e) and run on a self-hosted runner with Node `24.15.0` (same
-  pin as `meet-ce/docker/Dockerfile`) and pnpm `11.8.0`. pnpm is pinned by `packageManager` in the root
+  frontend unit/e2e, webcomponent unit/e2e) and use Node `24.15.0` (same pin as
+  `meet-ce/docker/Dockerfile`) and pnpm `11.8.0`. Unit jobs run on GitHub-hosted `ubuntu-24.04`
+  runners, free for this public repo; the integration and e2e jobs need the OpenVidu local deployment
+  and run on the shared self-hosted runners. pnpm is pinned by `packageManager` in the root
   `package.json`, which the Docker build follows; `pnpm/action-setup` fails if its `version` differs.
   Most jobs watch `meet.sh` because CI calls it, so dev-mode logic lives in `scripts/dev/dev.sh`
   (sourced only by `./meet.sh dev`), which no workflow watches. Markdown and `nodemon*.json` never
   trigger a job.
+- Workflows trigger on pull requests and on pushes to `main` only: a branch gets CI once it has a PR
+  (a draft is enough) or through `workflow_dispatch`. On a pull request that leaves storage untouched
+  (the `storage-diff` job in `backend-integration-test.yaml`), recordings run on S3 only; `main` always
+  runs S3, GCS and ABS.
 - Backend integration tests and all Playwright suites need real infrastructure (LiveKit, MongoDB,
   Redis, S3/MinIO). They are not runnable from a bare checkout — say so instead of reporting a pass.
 - Generated documentation:

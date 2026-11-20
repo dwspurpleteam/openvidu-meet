@@ -1,7 +1,15 @@
-import { LeftEventReason, MeetEventOrigin, MeetWebhookEventType, EmbeddedEventName } from '@openvidu-meet/typings';
+import {
+	EmbeddedEventName,
+	LeftEventReason,
+	MeetEventOrigin,
+	MeetParticipantModerationAction,
+	MeetRecordingStatus,
+	MeetRoomMemberRole,
+	MeetWebhookEventType
+} from '@openvidu-meet/typings';
 import { expect, test } from '@playwright/test';
 import { INTEGRATIONS, meetLocator, wcLocator } from '../helpers/webcomponent.helper';
-import { createRoom, deleteRooms } from '../helpers/meet-api.helper';
+import { createRoom, deleteRooms, getRecording } from '../helpers/meet-api.helper';
 import {
 	expectPrejoinCameraEnabled,
 	expectPrejoinMicEnabled,
@@ -12,8 +20,13 @@ import {
 	endMeetingCommand,
 	endMeetingLegacyCommand,
 	eventLocator,
+	eventPayloadField,
 	expectEvent,
 	expectWebhook,
+	participantHandChangedLocator,
+	participantHandLowerAllCommand,
+	participantHandLowerCommand,
+	participantHandRaiseCommand,
 	joinedParticipantIdentity,
 	kickParticipantCommand,
 	kickParticipantLegacyCommand,
@@ -26,7 +39,11 @@ import {
 	openMeeting,
 	openMeetingAtMediaSetup,
 	participantMuteAllCommand,
-	participantMuteCommand
+	participantMuteCommand,
+	participantUpdateRoleCommand,
+	recordingStartCommand,
+	recordingStatusLocator,
+	recordingStopCommand
 } from '../helpers/testapp.helper';
 
 // The command/event API is identical across embedding transports — only the
@@ -154,6 +171,10 @@ for (const integration of INTEGRATIONS) {
 
 				const speakerLeft = await expectEvent(speakerPage, EmbeddedEventName.LEFT);
 				await expect(speakerLeft).toContainText(LeftEventReason.PARTICIPANT_KICKED);
+
+				const left = await expectEvent(page, EmbeddedEventName.PARTICIPANT_LEFT);
+				await expect(left).toContainText(`"participantIdentity":"${speakerIdentity}"`);
+				await expect(left).toContainText(`"leaveReason":"${LeftEventReason.PARTICIPANT_KICKED}"`);
 
 				await speakerContext.close();
 			});
@@ -319,6 +340,84 @@ for (const integration of INTEGRATIONS) {
 			});
 		});
 
+		test.describe('PARTICIPANT_UPDATE_ROLE Command', () => {
+			test('should promote a speaker to moderator and demote them back', async ({ page, browser }) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const speakerContext = await browser.newContext();
+				const speakerPage = await speakerContext.newPage();
+				await openMeeting(speakerPage, roomId, { role: 'speaker', name: 'Speaker' });
+				const speakerIdentity = await joinedParticipantIdentity(speakerPage);
+
+				await participantUpdateRoleCommand(page, speakerIdentity, MeetParticipantModerationAction.UPGRADE);
+				const roleChanged = eventLocator(speakerPage, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED);
+				await expect(roleChanged).toHaveCount(1, { timeout: 10_000 });
+				await expect(roleChanged.first()).toContainText(`"role":"${MeetRoomMemberRole.MODERATOR}"`);
+
+				await participantUpdateRoleCommand(page, speakerIdentity, MeetParticipantModerationAction.DOWNGRADE);
+				await expect(roleChanged).toHaveCount(2, { timeout: 10_000 });
+				await expect(roleChanged.nth(1)).toContainText(`"role":"${MeetRoomMemberRole.SPEAKER}"`);
+
+				await speakerContext.close();
+			});
+
+			// The event promises the new role is in effect: a command only a moderator may send is
+			// accepted as soon as the promoted participant is told.
+			test('should let the promoted participant end the meeting right after being told', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const speakerContext = await browser.newContext();
+				const speakerPage = await speakerContext.newPage();
+				await openMeeting(speakerPage, roomId, { role: 'speaker', name: 'Speaker' });
+				const speakerIdentity = await joinedParticipantIdentity(speakerPage);
+
+				await participantUpdateRoleCommand(page, speakerIdentity, MeetParticipantModerationAction.UPGRADE);
+				await expectEvent(speakerPage, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED);
+
+				await endMeetingCommand(speakerPage);
+
+				const moderatorLeft = await expectEvent(page, EmbeddedEventName.LEFT);
+				await expect(moderatorLeft).toContainText(LeftEventReason.MEETING_ENDED);
+
+				await speakerContext.close();
+			});
+
+			// A later moderator mute is the barrier, as in the PARTICIPANT_MUTE permission test: it
+			// reaches the target after anything the speaker's earlier attempt could have caused.
+			test('should not change the role when the caller lacks the participantPromote permission', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker', name: 'Actor' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const targetContext = await browser.newContext();
+				const targetPage = await targetContext.newPage();
+				await openMeeting(targetPage, roomId, { role: 'speaker', name: 'Target' });
+				const targetIdentity = await joinedParticipantIdentity(targetPage);
+
+				const moderatorContext = await browser.newContext();
+				const moderatorPage = await moderatorContext.newPage();
+				await openMeeting(moderatorPage, roomId, { role: 'moderator' });
+				await expectEvent(moderatorPage, EmbeddedEventName.JOINED);
+
+				await participantUpdateRoleCommand(page, targetIdentity, MeetParticipantModerationAction.UPGRADE);
+
+				await participantMuteCommand(moderatorPage, targetIdentity, 'video');
+				await expectToolbarCameraEnabled(targetPage, 'webcomponent', false, { timeout: 15_000 });
+
+				await expect(eventLocator(targetPage, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED)).toHaveCount(0);
+
+				await moderatorContext.close();
+				await targetContext.close();
+			});
+		});
+
 		// Muting everyone is one signal addressed to the participants it names, so the interesting
 		// assertions are the exclusions: the other moderators and the caller must be left alone.
 		test.describe('PARTICIPANT_MUTE_ALL Command', () => {
@@ -352,10 +451,206 @@ for (const integration of INTEGRATIONS) {
 			});
 		});
 
+		test.describe('RECORDING_START / RECORDING_STOP Commands', () => {
+			test('should start and stop a recording, reporting each status to the host', async ({ page }) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				await recordingStartCommand(page);
+
+				const active = recordingStatusLocator(page, MeetRecordingStatus.ACTIVE);
+				await expect(active).toHaveCount(1, { timeout: 20_000 });
+				const recordingId = await eventPayloadField(active, 'recordingId');
+				expect((await getRecording(recordingId)).roomId).toBe(roomId);
+
+				await recordingStopCommand(page);
+
+				const complete = recordingStatusLocator(page, MeetRecordingStatus.COMPLETE);
+				await expect(complete).toHaveCount(1, { timeout: 20_000 });
+				await expect(complete).toContainText(recordingId);
+				await expectWebhook(page, MeetWebhookEventType.RECORDING_ENDED);
+			});
+
+			// The server reports a new recording some time after accepting it: a stop sent before that
+			// must still end the recording the start created, which LiveKit aborts when it has captured
+			// nothing yet.
+			test('should stop a recording asked to stop right after starting', async ({ page }) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				await recordingStartCommand(page);
+				await recordingStopCommand(page);
+
+				const ended = eventLocator(page, EmbeddedEventName.RECORDING_STATUS_CHANGED).filter({
+					hasText: /"status":"(complete|aborted)"/
+				});
+				await expect(ended).toHaveCount(1, { timeout: 30_000 });
+				await expectWebhook(page, MeetWebhookEventType.RECORDING_ENDED);
+			});
+
+			// The permission is editable per role, so a speaker can be handed the command without being
+			// handed the permission. The moderator's join is the barrier: a start that had gone through
+			// would have been reported long before it completes.
+			test('should not start a recording for a speaker who lacks the recordingControl permission', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				await recordingStartCommand(page);
+
+				const moderatorContext = await browser.newContext();
+				const moderatorPage = await moderatorContext.newPage();
+				await openMeeting(moderatorPage, roomId, { role: 'moderator' });
+				await expectEvent(moderatorPage, EmbeddedEventName.JOINED);
+
+				await expect(eventLocator(page, EmbeddedEventName.RECORDING_STATUS_CHANGED)).toHaveCount(0);
+
+				await recordingStartCommand(moderatorPage);
+				await expect(recordingStatusLocator(page, MeetRecordingStatus.ACTIVE)).toHaveCount(1, {
+					timeout: 20_000
+				});
+
+				await recordingStopCommand(moderatorPage);
+				await expect(recordingStatusLocator(moderatorPage, MeetRecordingStatus.COMPLETE)).toHaveCount(1, {
+					timeout: 20_000
+				});
+
+				await moderatorContext.close();
+			});
+		});
+
 		// The media commands are the first ones meant to work BEFORE the room is
 		// connected too (the prejoin screen has real local tracks), and the first with an
 		// optional boolean: omitted = toggle, provided = set. Both halves of that contract
 		// are asserted here against the participant's real device state.
+		test.describe('PARTICIPANT_HAND_RAISE / PARTICIPANT_HAND_LOWER / PARTICIPANT_HAND_LOWER_ALL Commands', () => {
+			test('should raise and lower the own hand, telling everyone', async ({ page, browser }) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker', name: 'Raiser' });
+				const raiserIdentity = await joinedParticipantIdentity(page);
+
+				const observerContext = await browser.newContext();
+				const observerPage = await observerContext.newPage();
+				await openMeeting(observerPage, roomId, { role: 'speaker', name: 'Observer' });
+				await expectEvent(observerPage, EmbeddedEventName.JOINED);
+
+				await participantHandRaiseCommand(page);
+
+				const raised = participantHandChangedLocator(page, raiserIdentity, true);
+				await expect(raised).toHaveCount(1, { timeout: 15_000 });
+				await expect(raised).toContainText('"handRaiseDate":');
+				await expect(raised).toContainText(MeetEventOrigin.PARTICIPANT);
+				await expect(participantHandChangedLocator(observerPage, raiserIdentity, true)).toHaveCount(1, {
+					timeout: 15_000
+				});
+				await expect(meetLocator(page, integration, '#raise-hand-button')).toHaveClass(/active/);
+
+				await participantHandLowerCommand(page);
+
+				const lowered = participantHandChangedLocator(page, raiserIdentity, false);
+				await expect(lowered).toHaveCount(1, { timeout: 15_000 });
+				await expect(lowered).toContainText(MeetEventOrigin.PARTICIPANT);
+				await expect(lowered).not.toContainText('handRaiseDate');
+				await expect(meetLocator(page, integration, '#raise-hand-button')).not.toHaveClass(/active/);
+
+				await observerContext.close();
+			});
+
+			test('should let a moderator lower another participant hand, attributed to the moderator', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const speakerContext = await browser.newContext();
+				const speakerPage = await speakerContext.newPage();
+				await openMeeting(speakerPage, roomId, { role: 'speaker', name: 'Speaker' });
+				const speakerIdentity = await joinedParticipantIdentity(speakerPage);
+
+				await participantHandRaiseCommand(speakerPage);
+				await expect(participantHandChangedLocator(page, speakerIdentity, true)).toHaveCount(1, {
+					timeout: 15_000
+				});
+
+				await participantHandLowerCommand(page, speakerIdentity);
+
+				const lowered = participantHandChangedLocator(speakerPage, speakerIdentity, false);
+				await expect(lowered).toHaveCount(1, { timeout: 15_000 });
+				await expect(lowered).toContainText(MeetEventOrigin.MODERATOR);
+				await expect(participantHandChangedLocator(page, speakerIdentity, false)).toContainText(
+					MeetEventOrigin.MODERATOR
+				);
+
+				await speakerContext.close();
+			});
+
+			test('should not lower another participant hand for a speaker who lacks participantHandLower', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker', name: 'Actor' });
+				const actorIdentity = await joinedParticipantIdentity(page);
+
+				const targetContext = await browser.newContext();
+				const targetPage = await targetContext.newPage();
+				await openMeeting(targetPage, roomId, { role: 'speaker', name: 'Target' });
+				const targetIdentity = await joinedParticipantIdentity(targetPage);
+
+				await participantHandRaiseCommand(targetPage);
+				await expect(participantHandChangedLocator(page, targetIdentity, true)).toHaveCount(1, {
+					timeout: 15_000
+				});
+
+				await participantHandLowerCommand(page, targetIdentity);
+				// The actor's own hand is the round trip the rejected command never made.
+				await participantHandRaiseCommand(page);
+				await expect(participantHandChangedLocator(page, actorIdentity, true)).toHaveCount(1, {
+					timeout: 15_000
+				});
+
+				await expect(participantHandChangedLocator(targetPage, targetIdentity, false)).toHaveCount(0);
+
+				await targetContext.close();
+			});
+
+			test('should lower every raised hand at once', async ({ page, browser }) => {
+				await openMeeting(page, roomId, { integration, role: 'moderator' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const contexts = [];
+				const identities: string[] = [];
+
+				for (const name of ['First', 'Second']) {
+					const context = await browser.newContext();
+					const speakerPage = await context.newPage();
+					await openMeeting(speakerPage, roomId, { role: 'speaker', name });
+					identities.push(await joinedParticipantIdentity(speakerPage));
+					await participantHandRaiseCommand(speakerPage);
+					contexts.push(context);
+				}
+
+				for (const identity of identities) {
+					await expect(participantHandChangedLocator(page, identity, true)).toHaveCount(1, {
+						timeout: 15_000
+					});
+				}
+
+				await participantHandLowerAllCommand(page);
+
+				for (const identity of identities) {
+					const lowered = participantHandChangedLocator(page, identity, false);
+					await expect(lowered).toHaveCount(1, { timeout: 15_000 });
+					await expect(lowered).toContainText(MeetEventOrigin.MODERATOR);
+				}
+
+				for (const context of contexts) {
+					await context.close();
+				}
+			});
+		});
+
 		test.describe('MEDIA_TOGGLE Commands', () => {
 			test('should mute and unmute the microphone by setting active explicitly', async ({ page }) => {
 				await openMeeting(page, roomId, { integration, role: 'moderator' });

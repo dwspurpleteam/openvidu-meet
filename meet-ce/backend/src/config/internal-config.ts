@@ -33,10 +33,14 @@ export const INTERNAL_CONFIG = {
 	MEETING_DURATION_LIMIT_TOLERANCE: '1s' as StringValue, // How close to its deadline a meeting counts as due, instead of arming a timer for a remainder this small
 	MEETING_DURATION_LIMIT_RETRY_DELAY: '5s' as StringValue, // First delay a fired duration-limit timer waits to retry an end it could not carry out; doubles per attempt, up to MEETING_DURATION_LIMIT_GC_INTERVAL
 	MEETING_ENDED_REASON_TTL: '24h' as StringValue, // Redis TTL for the per-room "meeting was force-ended for exceeding its duration limit" flag consumed by the room_finished handler; scoped to the meeting's LiveKit room sid, this is only a last-resort safety net
+	HAND_LOCK_TTL: '5s' as StringValue, // Redis lock TTL serializing the changes to one participant's hand, so each one reads the state the previous one left
 	MEETING_MIN_PARTICIPANTS_LIMIT: 1, // Lowest value config.maxParticipants may be set to; 0 would be a room nobody could ever join
 	MEETING_MAX_PARTICIPANTS_LIMIT: 30, // Highest value config.maxParticipants may be set to
 	MEETING_MIN_DURATION_MINUTES_LIMIT: 1, // Lowest value config.maxDurationMinutes may be set to; 0 would be indistinguishable from the null that means no limit
 	MEETING_MAX_DURATION_MINUTES_LIMIT: 1_440, // Highest value config.maxDurationMinutes may be set to (1 day)
+	PARTICIPANT_METADATA_LOCK_TTL: '10s' as StringValue, // Redis lock TTL serializing the read-modify-write of a participant's LiveKit metadata (role change, token regeneration); released as soon as the write lands
+	PARTICIPANT_METADATA_LOCK_RETRY_DELAY: '100ms' as StringValue, // Delay between attempts to take a participant's metadata lock held by another writer
+	PARTICIPANT_METADATA_LOCK_MAX_ATTEMPTS: 30, // ~3s budget before the write is refused with a 409
 
 	// Timing and cleanup settings for recording lifecycle management
 	RECORDING_ACTIVE_LOCK_TTL: '24h' as StringValue, // Redis Lock TTL for active recording in a room (capped at the 24h max supported by the distributed-lock engine; the real lifecycle is governed by the orphaned-locks GC, this is only a last-resort safety net)
@@ -90,7 +94,7 @@ export const INTERNAL_CONFIG = {
 	CONCURRENCY_BULK_RETRIEVE_RECORDINGS: 10, // Concurrency limit for bulk retrieving recording info
 	CONCURRENCY_BULK_DELETE_STORAGE: 20, // Concurrency limit for bulk deleting objects in storage
 	CONCURRENCY_BULK_KICK_MEMBERS: 20, // Concurrency limit for bulk kicking members from a room
-	CONCURRENCY_BULK_MUTE_PARTICIPANTS: 20, // Concurrency limit for bulk muting participants in a meeting
+	CONCURRENCY_BULK_PARTICIPANT_UPDATES: 20, // Concurrency limit for bulk per-participant LiveKit updates (mute all, lower all hands)
 	CONCURRENCY_BULK_UPDATE_PERMISSIONS: 20, // Concurrency limit for bulk updating room members' permissions
 	CONCURRENCY_BULK_CLEANUP_USER_RESOURCES: 20, // Concurrency limit for bulk cleanup of user resources
 	CONCURRENCY_BULK_CLEANUP_PARTICIPANT_NAME_RESERVATIONS: 20, // Concurrency limit for bulk cleanup of participant name reservations
@@ -113,8 +117,8 @@ export const INTERNAL_CONFIG = {
 	GLOBAL_CONFIG_SCHEMA_VERSION: 4 as SchemaVersion, // MIGRATION_REV: 1789642617602
 	USER_SCHEMA_VERSION: 2 as SchemaVersion, // MIGRATION_REV: 1774181859233
 	API_KEY_SCHEMA_VERSION: 1 as SchemaVersion, // MIGRATION_REV: 1771328577054
-	ROOM_SCHEMA_VERSION: 5 as SchemaVersion, // MIGRATION_REV: 1787569647276
-	ROOM_MEMBER_SCHEMA_VERSION: 3 as SchemaVersion, // MIGRATION_REV: 1787569647276
+	ROOM_SCHEMA_VERSION: 6 as SchemaVersion, // MIGRATION_REV: 1791220702798
+	ROOM_MEMBER_SCHEMA_VERSION: 4 as SchemaVersion, // MIGRATION_REV: 1791220702798
 	RECORDING_SCHEMA_VERSION: 3 as SchemaVersion, // MIGRATION_REV: 1781616231619
 	WEBHOOK_SCHEMA_VERSION: 1 as SchemaVersion // MIGRATION_REV: 1786634401242
 };

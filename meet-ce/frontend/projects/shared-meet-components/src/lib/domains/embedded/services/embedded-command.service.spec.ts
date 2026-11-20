@@ -1,14 +1,21 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { MeetRecordingInfo } from '@openvidu-meet/typings';
 import { TestBed } from '@angular/core/testing';
+import { MeetParticipantModerationAction } from '@openvidu-meet/typings';
 import {
 	LocalMediaService,
 	MeetingPhaseService,
 	MeetingViewPhase,
+	RecordingState,
+	RecordingStateInfo,
 	ScreenShareService,
 	MeetingLiveKitService
 } from '../../meeting/openvidu-components';
+import { RecordingService as RecordingStateService } from '../../meeting/openvidu-components/services/recording/recording.service';
 import { MeetingContextService } from '../../meeting/services/meeting-context.service';
+import { MeetingHandService } from '../../meeting/services/meeting-hand.service';
 import { MeetingModerationService } from '../../meeting/services/meeting-moderation.service';
+import { RecordingService } from '../../recordings/services/recording.service';
 import { RoomMemberContextService } from '../../room-members/services/room-member-context.service';
 import { LoggerService } from '../../../shared/services/logger.service';
 import { EmbeddedCommandService } from './embedded-command.service';
@@ -24,6 +31,8 @@ class LoggerServiceStub {
 
 const ROOM_ID = 'room1';
 const IDENTITY = 'participant-1';
+const RECORDING_ID = 'rec-1';
+const STARTED_RECORDING_ID = 'rec-new';
 
 /**
  * The command × phase × permission matrix of the embedded command bridge. Both transports (the
@@ -43,6 +52,10 @@ describe('EmbeddedCommandService', () => {
 		camera: { enabled: ReturnType<typeof signal<boolean>> };
 	};
 	let screenShare: { setEnabled: jasmine.Spy; enabled: ReturnType<typeof signal<boolean>> };
+	let recordingService: jasmine.SpyObj<RecordingService>;
+	let handService: jasmine.SpyObj<MeetingHandService>;
+	let recordingStatus: ReturnType<typeof signal<RecordingStateInfo>>;
+	let setRecordingStarting: jasmine.Spy;
 	let liveKitService: { isSessionActive: ReturnType<typeof signal<boolean>>; disconnect: jasmine.Spy };
 	let phase: ReturnType<typeof signal<MeetingViewPhase>>;
 	let hasPermission: jasmine.Spy;
@@ -58,12 +71,14 @@ describe('EmbeddedCommandService', () => {
 			'endMeeting',
 			'kickParticipant',
 			'muteParticipant',
-			'muteAllParticipants'
+			'muteAllParticipants',
+			'changeParticipantRole'
 		]);
 		moderationService.endMeeting.and.resolveTo();
 		moderationService.kickParticipant.and.resolveTo();
 		moderationService.muteParticipant.and.resolveTo();
 		moderationService.muteAllParticipants.and.resolveTo();
+		moderationService.changeParticipantRole.and.resolveTo();
 
 		microphoneEnabled = signal(true);
 		cameraEnabled = signal(true);
@@ -75,6 +90,36 @@ describe('EmbeddedCommandService', () => {
 			camera: { enabled: cameraEnabled }
 		};
 		screenShare = { setEnabled: jasmine.createSpy('setEnabled').and.resolveTo(), enabled: screenShareEnabled };
+
+		recordingService = jasmine.createSpyObj<RecordingService>('RecordingService', [
+			'startRecording',
+			'stopRecording'
+		]);
+		recordingService.startRecording.and.resolveTo({ recordingId: STARTED_RECORDING_ID } as MeetRecordingInfo);
+		recordingService.stopRecording.and.resolveTo();
+
+		handService = jasmine.createSpyObj<MeetingHandService>('MeetingHandService', [
+			'raise',
+			'lower',
+			'lowerAll',
+			'isOwn'
+		]);
+		handService.raise.and.resolveTo();
+		handService.lower.and.resolveTo();
+		handService.lowerAll.and.resolveTo();
+		handService.isOwn.and.callFake(
+			(participantIdentity?: string) => !participantIdentity || participantIdentity === IDENTITY
+		);
+		recordingStatus = signal<RecordingStateInfo>({
+			id: RECORDING_ID,
+			status: RecordingState.STARTED,
+			elapsed: new Date(0)
+		});
+		setRecordingStarting = jasmine
+			.createSpy('setRecordingStarting')
+			.and.callFake((id: string) =>
+				recordingStatus.set({ id, status: RecordingState.STARTING, elapsed: new Date(0) })
+			);
 
 		liveKitService = {
 			isSessionActive: signal(true),
@@ -92,6 +137,12 @@ describe('EmbeddedCommandService', () => {
 				{ provide: MeetingModerationService, useValue: moderationService },
 				{ provide: LocalMediaService, useValue: localMedia as unknown as LocalMediaService },
 				{ provide: ScreenShareService, useValue: screenShare as unknown as ScreenShareService },
+				{ provide: RecordingService, useValue: recordingService },
+				{ provide: MeetingHandService, useValue: handService },
+				{
+					provide: RecordingStateService,
+					useValue: { recordingStatus, setRecordingStarting } as unknown as RecordingStateService
+				},
 				{ provide: MeetingLiveKitService, useValue: liveKitService as unknown as MeetingLiveKitService },
 				{ provide: MeetingPhaseService, useValue: { phase } as unknown as MeetingPhaseService },
 				{
@@ -176,6 +227,30 @@ describe('EmbeddedCommandService', () => {
 			expect(moderationService.muteParticipant).not.toHaveBeenCalled();
 		});
 
+		it('rejects recordingStart with no active session', async () => {
+			liveKitService.isSessionActive.set(false);
+
+			await service.recordingStart();
+
+			expect(recordingService.startRecording).not.toHaveBeenCalled();
+		});
+
+		it('rejects recordingStop with no active session', async () => {
+			liveKitService.isSessionActive.set(false);
+
+			await service.recordingStop();
+
+			expect(recordingService.stopRecording).not.toHaveBeenCalled();
+		});
+
+		it('rejects participantUpdateRole with no active session', async () => {
+			liveKitService.isSessionActive.set(false);
+
+			await service.participantUpdateRole(IDENTITY, MeetParticipantModerationAction.UPGRADE);
+
+			expect(moderationService.changeParticipantRole).not.toHaveBeenCalled();
+		});
+
 		it('rejects meetingLeave with no active session (disconnect would be a no-op anyway)', async () => {
 			liveKitService.isSessionActive.set(false);
 
@@ -252,6 +327,66 @@ describe('EmbeddedCommandService', () => {
 			expect(moderationService.muteAllParticipants).toHaveBeenCalledOnceWith(ROOM_ID, { videoActive: false });
 		});
 
+		it('rejects participantUpdateRole without the participantPromote permission', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.participantUpdateRole(IDENTITY, MeetParticipantModerationAction.UPGRADE);
+
+			expect(hasPermission).toHaveBeenCalledWith('participantPromote');
+			expect(moderationService.changeParticipantRole).not.toHaveBeenCalled();
+		});
+
+		// Raising and lowering one's own hand is never gated: the room toggle is the server's to enforce.
+		it('raises the own hand without checking any permission', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.participantHandRaise();
+
+			expect(hasPermission).not.toHaveBeenCalled();
+			expect(handService.raise).toHaveBeenCalledTimes(1);
+		});
+
+		it('lowers the own hand without checking any permission, naming nobody or oneself', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.participantHandLower();
+			await service.participantHandLower(IDENTITY);
+
+			expect(hasPermission).not.toHaveBeenCalled();
+			expect(handService.lower).toHaveBeenCalledTimes(2);
+			expect(handService.lower).toHaveBeenCalledWith(IDENTITY);
+		});
+
+		it('gates lowering another participant hand on participantHandLower', async () => {
+			await service.participantHandLower('participant-2');
+
+			expect(hasPermission).toHaveBeenCalledWith('participantHandLower');
+			expect(handService.lower).toHaveBeenCalledOnceWith('participant-2');
+		});
+
+		it('rejects lowering another participant hand without participantHandLower', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.participantHandLower('participant-2');
+
+			expect(handService.lower).not.toHaveBeenCalled();
+		});
+
+		it('gates participantHandLowerAll on participantHandLower', async () => {
+			await service.participantHandLowerAll();
+
+			expect(hasPermission).toHaveBeenCalledWith('participantHandLower');
+			expect(handService.lowerAll).toHaveBeenCalledTimes(1);
+		});
+
+		it('rejects a hand command before the meeting is connected', async () => {
+			liveKitService.isSessionActive.set(false);
+
+			await service.participantHandRaise();
+
+			expect(handService.raise).not.toHaveBeenCalled();
+		});
+
 		it('rejects mediaToggleAudio without the mediaPublishAudio permission', async () => {
 			hasPermission.and.returnValue(false);
 
@@ -277,6 +412,24 @@ describe('EmbeddedCommandService', () => {
 
 			expect(hasPermission).toHaveBeenCalledWith('mediaShareScreen');
 			expect(screenShare.setEnabled).not.toHaveBeenCalled();
+		});
+
+		it('rejects recordingStart without the recordingControl permission', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.recordingStart();
+
+			expect(hasPermission).toHaveBeenCalledWith('recordingControl');
+			expect(recordingService.startRecording).not.toHaveBeenCalled();
+		});
+
+		it('rejects recordingStop without the recordingControl permission', async () => {
+			hasPermission.and.returnValue(false);
+
+			await service.recordingStop();
+
+			expect(hasPermission).toHaveBeenCalledWith('recordingControl');
+			expect(recordingService.stopRecording).not.toHaveBeenCalled();
 		});
 
 		it('meetingLeave requires no permission: any participant may leave', async () => {
@@ -338,6 +491,82 @@ describe('EmbeddedCommandService', () => {
 			);
 		});
 
+		it('recordingStart starts a recording of the current meeting by its room id', async () => {
+			await service.recordingStart();
+
+			expect(recordingService.startRecording).toHaveBeenCalledOnceWith(ROOM_ID);
+		});
+
+		it('recordingStart is rejected when the room id is undefined', async () => {
+			roomId.set(undefined);
+
+			await service.recordingStart();
+
+			expect(recordingService.startRecording).not.toHaveBeenCalled();
+		});
+
+		it('recordingStart hands the recording it created to the recording state', async () => {
+			await service.recordingStart();
+
+			expect(setRecordingStarting).toHaveBeenCalledOnceWith(STARTED_RECORDING_ID);
+		});
+
+		// The server reports the new recording some time after accepting it, so a host that stops right
+		// away would otherwise find nothing to stop while the recording goes on.
+		it('recordingStop sent right after recordingStart stops the recording that start created', async () => {
+			recordingStatus.set({ status: RecordingState.STOPPED, elapsed: new Date(0) });
+			let accept!: (info: MeetRecordingInfo) => void;
+			recordingService.startRecording.and.returnValue(new Promise((resolve) => (accept = resolve)));
+
+			const start = service.recordingStart();
+			const stop = service.recordingStop();
+			accept({ recordingId: STARTED_RECORDING_ID } as MeetRecordingInfo);
+			await Promise.all([start, stop]);
+
+			expect(recordingService.stopRecording).toHaveBeenCalledOnceWith(STARTED_RECORDING_ID);
+		});
+
+		it('recordingStop after a start that failed finds nothing to stop', async () => {
+			recordingStatus.set({ status: RecordingState.STOPPED, elapsed: new Date(0) });
+			recordingService.startRecording.and.rejectWith(new Error('recording disabled'));
+
+			await service.recordingStart();
+			await service.recordingStop();
+
+			expect(recordingService.stopRecording).not.toHaveBeenCalled();
+		});
+
+		it('recordingStop stops the recording in progress by its id', async () => {
+			await service.recordingStop();
+
+			expect(recordingService.stopRecording).toHaveBeenCalledOnceWith(RECORDING_ID);
+		});
+
+		it('recordingStop is rejected, with a warning, when no recording is in progress', async () => {
+			recordingStatus.set({ status: RecordingState.STOPPED, elapsed: new Date(0) });
+
+			await service.recordingStop();
+
+			expect(recordingService.stopRecording).not.toHaveBeenCalled();
+			expect(logger.warn).toHaveBeenCalledWith('recordingStop() called but no recording is in progress');
+		});
+
+		it('participantUpdateRole applies the action to the named participant of the current meeting', async () => {
+			await service.participantUpdateRole(IDENTITY, MeetParticipantModerationAction.DOWNGRADE);
+
+			expect(moderationService.changeParticipantRole).toHaveBeenCalledOnceWith(
+				ROOM_ID,
+				IDENTITY,
+				MeetParticipantModerationAction.DOWNGRADE
+			);
+		});
+
+		it('participantUpdateRole is rejected without a participant identity', async () => {
+			await service.participantUpdateRole('', MeetParticipantModerationAction.UPGRADE);
+
+			expect(moderationService.changeParticipantRole).not.toHaveBeenCalled();
+		});
+
 		it('mediaToggleAudio passes an explicit active flag through', async () => {
 			await service.mediaToggleAudio(false);
 
@@ -385,6 +614,13 @@ describe('EmbeddedCommandService', () => {
 			moderationService.endMeeting.and.rejectWith(new Error('boom'));
 
 			await expectAsync(service.meetingEnd()).toBeResolved();
+		});
+
+		it('a failing recording start is logged, not propagated to the host', async () => {
+			recordingService.startRecording.and.rejectWith(new Error('boom'));
+
+			await expectAsync(service.recordingStart()).toBeResolved();
+			expect(logger.error).toHaveBeenCalled();
 		});
 
 		it('a failing media toggle is logged, not propagated to the host', async () => {

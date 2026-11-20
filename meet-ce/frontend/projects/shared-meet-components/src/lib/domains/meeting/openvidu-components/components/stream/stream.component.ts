@@ -13,7 +13,6 @@ import { ParticipantService } from '../../services/participant/participant.servi
 import { AudioWaveComponent } from '../audio-wave/audio-wave.component';
 import { ConnectionQualityIndicatorComponent } from '../connection-quality-indicator/connection-quality-indicator.component';
 import { VideoElementComponent } from '../video-element/video-element.component';
-import { MeetStorageService } from '../../../../../shared/services/storage.service';
 
 /**
  * The **StreamComponent** is hosted inside of the {@link LayoutComponent}.
@@ -39,7 +38,6 @@ export class StreamComponent implements OnDestroy {
 	private readonly participantService = inject(ParticipantService);
 	private readonly cdkSrv = inject(CdkOverlayService);
 	private readonly libService = inject(MeetingUiConfigService);
-	private readonly meetStorageService = inject(MeetStorageService);
 	readonly stream = input<ParticipantStream | undefined>(undefined);
 
 	readonly showParticipantName = this.libService.displayParticipantNameSignal;
@@ -67,6 +65,15 @@ export class StreamComponent implements OnDestroy {
 			isSpeaking: this.showAudioDetection() && stream.participant.isSpeaking && stream.isCameraStream,
 			hasEncryptionError: stream.participant.hasEncryptionError
 		};
+	});
+
+	/** The raised hand's place in the queue, shown on the camera tile only. */
+	readonly handPosition = computed(() => {
+		const stream = this.stream();
+
+		return stream?.isCameraStream
+			? this.participantService.handQueuePositions().get(stream.participant.identity)
+			: undefined;
 	});
 
 	/**
@@ -135,10 +142,10 @@ export class StreamComponent implements OnDestroy {
 		const stream = this.stream();
 
 		if (stream?.participant) {
-			this.streamLayoutService.toggleStreamFloating(stream.streamId);
-
 			if (stream.participant.isLocal && stream.isCameraStream) {
-				this.meetStorageService.setLocalTileFloating(!stream.isFloating);
+				this.participantService.setLocalCameraFloating(!stream.isFloating);
+			} else {
+				this.streamLayoutService.toggleStreamFloating(stream.streamId);
 			}
 
 			this.layoutService.update();

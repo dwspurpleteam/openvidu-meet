@@ -218,7 +218,7 @@ export class WindowShellComponent {
 		const next = {
 			width,
 			height,
-			x: Math.max(0, Math.min(bounds.clientWidth - width, rect.x)),
+			x: Math.max(0, Math.min(bounds.clientWidth - width - 5, rect.x)),
 			y: Math.max(0, Math.min(bounds.clientHeight - height, rect.y))
 		};
 		this.rect.set(next);

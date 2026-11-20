@@ -1,4 +1,5 @@
 import { MeetParticipantMuteOptions } from '../request/meeting-request.js';
+import { MeetParticipantModerationAction } from '../request/room-member-request.js';
 
 /**
  * All available commands that can be sent to the embedded OpenVidu Meet application.
@@ -37,6 +38,28 @@ export enum EmbeddedCommandName {
 	 */
 	PARTICIPANT_MUTE_ALL = 'participantMuteAll',
 	/**
+	 * Promotes a participant to moderator (`upgrade`) or returns a promoted one to their original role
+	 * (`downgrade`). The participant is told through the `participantRoleChanged` event.
+	 * @permission participantPromote
+	 */
+	PARTICIPANT_UPDATE_ROLE = 'participantUpdateRole',
+	/**
+	 * Raises the local participant's hand. Every participant is notified through the
+	 * `participantHandChanged` event. Rejected while the room's `raiseHand.enabled` config is `false`.
+	 */
+	PARTICIPANT_HAND_RAISE = 'participantHandRaise',
+	/**
+	 * Lowers the local participant's hand, or another participant's when `participantIdentity` is
+	 * given. Only lowering someone else's hand needs the permission.
+	 * @permission participantHandLower
+	 */
+	PARTICIPANT_HAND_LOWER = 'participantHandLower',
+	/**
+	 * Lowers every raised hand in the meeting.
+	 * @permission participantHandLower
+	 */
+	PARTICIPANT_HAND_LOWER_ALL = 'participantHandLowerAll',
+	/**
 	 * Toggles the local participant's microphone, or sets it when `active` is provided.
 	 * @permission mediaPublishAudio
 	 * @prejoin Works from the prejoin screen onwards, before the meeting is joined.
@@ -53,6 +76,16 @@ export enum EmbeddedCommandName {
 	 * @permission mediaShareScreen
 	 */
 	MEDIA_TOGGLE_SCREEN_SHARE = 'mediaToggleScreenShare',
+	/**
+	 * Starts recording the meeting. Its progress is reported by the `recordingStatusChanged` event.
+	 * @permission recordingControl
+	 */
+	RECORDING_START = 'recordingStart',
+	/**
+	 * Stops the recording in progress.
+	 * @permission recordingControl
+	 */
+	RECORDING_STOP = 'recordingStop',
 	/**
 	 * Ends the current meeting for all participants.
 	 * @permission meetingEnd
@@ -109,6 +142,29 @@ export interface EmbeddedCommandPayloads {
 		media: MeetParticipantMuteOptions;
 	};
 	/**
+	 * Payload for the {@link EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE} command.
+	 * `action` is the change to apply (see {@link MeetParticipantModerationAction}).
+	 */
+	[EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE]: {
+		participantIdentity: string;
+		action: MeetParticipantModerationAction;
+	};
+	/**
+	 * Payload for the {@link EmbeddedCommandName.PARTICIPANT_HAND_RAISE} command.
+	 */
+	[EmbeddedCommandName.PARTICIPANT_HAND_RAISE]: void;
+	/**
+	 * Payload for the {@link EmbeddedCommandName.PARTICIPANT_HAND_LOWER} command.
+	 * When `participantIdentity` is omitted, the local participant's own hand is lowered.
+	 */
+	[EmbeddedCommandName.PARTICIPANT_HAND_LOWER]: {
+		participantIdentity?: string;
+	};
+	/**
+	 * Payload for the {@link EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL} command.
+	 */
+	[EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL]: void;
+	/**
 	 * Payload for the {@link EmbeddedCommandName.MEDIA_TOGGLE_AUDIO} command.
 	 * When `active` is omitted, the microphone state is toggled.
 	 */
@@ -129,6 +185,14 @@ export interface EmbeddedCommandPayloads {
 	[EmbeddedCommandName.MEDIA_TOGGLE_SCREEN_SHARE]: {
 		active?: boolean;
 	};
+	/**
+	 * Payload for the {@link EmbeddedCommandName.RECORDING_START} command.
+	 */
+	[EmbeddedCommandName.RECORDING_START]: void;
+	/**
+	 * Payload for the {@link EmbeddedCommandName.RECORDING_STOP} command.
+	 */
+	[EmbeddedCommandName.RECORDING_STOP]: void;
 	/**
 	 * Payload for the {@link EmbeddedCommandName.END_MEETING} command.
 	 * @deprecated Use {@link EmbeddedCommandName.MEETING_END}. Removed in 3.12.0.
@@ -235,6 +299,43 @@ export interface EmbeddedParticipantMuteAllCommand {
 }
 
 /**
+ * Command message for {@link EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE}: the command name plus its
+ * payload, derived from {@link EmbeddedCommandPayloadFor}.
+ * @category Communication
+ */
+export interface EmbeddedParticipantUpdateRoleCommand {
+	command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE;
+	payload: EmbeddedCommandPayloadFor<EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE>;
+}
+
+/**
+ * Command message for {@link EmbeddedCommandName.PARTICIPANT_HAND_RAISE} (no payload).
+ * @category Communication
+ */
+export interface EmbeddedParticipantHandRaiseCommand {
+	command: EmbeddedCommandName.PARTICIPANT_HAND_RAISE;
+}
+
+/**
+ * Command message for {@link EmbeddedCommandName.PARTICIPANT_HAND_LOWER}: the command name plus its
+ * optional payload (omitted payload or `participantIdentity` = the local participant's own hand),
+ * derived from {@link EmbeddedCommandPayloadFor}.
+ * @category Communication
+ */
+export interface EmbeddedParticipantHandLowerCommand {
+	command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER;
+	payload?: EmbeddedCommandPayloadFor<EmbeddedCommandName.PARTICIPANT_HAND_LOWER>;
+}
+
+/**
+ * Command message for {@link EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL} (no payload).
+ * @category Communication
+ */
+export interface EmbeddedParticipantHandLowerAllCommand {
+	command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL;
+}
+
+/**
  * Command message for {@link EmbeddedCommandName.END_MEETING} (no payload).
  * @category Communication
  * @deprecated Use {@link EmbeddedMeetingEndCommand}. Removed in 3.12.0.
@@ -263,12 +364,6 @@ export interface EmbeddedKickParticipantCommand {
 	payload: EmbeddedCommandPayloadFor<EmbeddedCommandName.KICK_PARTICIPANT>;
 }
 
-/**
- * Discriminated union of every command message the host can send to the embedded app; narrow on
- * `command`. In the iframe integration this is the object posted verbatim over `postMessage`.
- * Includes the deprecated aliases, which hosts written against 3.8.0 still send.
- * @category Communication
- */
 /**
  * Command message for {@link EmbeddedCommandName.MEDIA_TOGGLE_AUDIO}: the command name plus its
  * optional payload (omitted payload or `active` = toggle), derived from
@@ -299,15 +394,43 @@ export interface EmbeddedMediaToggleScreenShareCommand {
 	payload?: EmbeddedCommandPayloadFor<EmbeddedCommandName.MEDIA_TOGGLE_SCREEN_SHARE>;
 }
 
+/**
+ * Command message for {@link EmbeddedCommandName.RECORDING_START} (no payload).
+ * @category Communication
+ */
+export interface EmbeddedRecordingStartCommand {
+	command: EmbeddedCommandName.RECORDING_START;
+}
+
+/**
+ * Command message for {@link EmbeddedCommandName.RECORDING_STOP} (no payload).
+ * @category Communication
+ */
+export interface EmbeddedRecordingStopCommand {
+	command: EmbeddedCommandName.RECORDING_STOP;
+}
+
+/**
+ * Discriminated union of every command message the host can send to the embedded app; narrow on
+ * `command`. In the iframe integration this is the object posted verbatim over `postMessage`.
+ * Includes the deprecated aliases, which hosts written against 3.8.0 still send.
+ * @category Communication
+ */
 export type EmbeddedCommand =
 	| EmbeddedMeetingLeaveCommand
 	| EmbeddedMeetingEndCommand
 	| EmbeddedParticipantKickCommand
 	| EmbeddedParticipantMuteCommand
 	| EmbeddedParticipantMuteAllCommand
+	| EmbeddedParticipantUpdateRoleCommand
+	| EmbeddedParticipantHandRaiseCommand
+	| EmbeddedParticipantHandLowerCommand
+	| EmbeddedParticipantHandLowerAllCommand
 	| EmbeddedMediaToggleAudioCommand
 	| EmbeddedMediaToggleVideoCommand
 	| EmbeddedMediaToggleScreenShareCommand
+	| EmbeddedRecordingStartCommand
+	| EmbeddedRecordingStopCommand
 	| EmbeddedEndMeetingCommand
 	| EmbeddedLeaveRoomCommand
 	| EmbeddedKickParticipantCommand;

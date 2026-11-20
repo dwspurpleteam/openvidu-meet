@@ -1,5 +1,10 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { EmbeddedEventName, EmbeddedEventPayloadFor, MeetParticipantMuteOptions } from '@openvidu-meet/typings';
+import {
+	EmbeddedEventName,
+	EmbeddedEventPayloadFor,
+	MeetParticipantModerationAction,
+	MeetParticipantMuteOptions
+} from '@openvidu-meet/typings';
 import { Integration, TriState, toOptionalBoolean } from '../models';
 import type { OpenViduMeetElement } from '../openvidu-meet-element';
 import { EventLogService } from './event-log';
@@ -21,7 +26,7 @@ export class MeetCommandsService {
 	private readonly iframeHost = inject(IframeHostService);
 	private readonly log = inject(EventLogService);
 
-	/** Participant addressed by `participantKick()` and `participantMute()`. */
+	/** Participant addressed by `participantKick()`, `participantUpdateRole()` and `participantMute()`. */
 	readonly participantIdentity = signal('');
 	/** Devices the two moderation-mute commands turn off; any combination is a valid request. */
 	readonly muteAudio = signal(true);
@@ -83,6 +88,18 @@ export class MeetCommandsService {
 		this.log.command('participantKick', `("${identity}")`);
 	}
 
+	participantUpdateRole(action: MeetParticipantModerationAction): void {
+		const identity = this.requireIdentity('participantUpdateRole');
+
+		if (!identity) return;
+
+		this.dispatch(
+			() => this.iframeHost.participantUpdateRole(identity, action),
+			(element) => element.participantUpdateRole(identity, action)
+		);
+		this.log.command('participantUpdateRole', `("${identity}", "${action}")`);
+	}
+
 	participantMute(): void {
 		const identity = this.requireIdentity('participantMute');
 		const media = this.muteOptions('participantMute');
@@ -135,6 +152,52 @@ export class MeetCommandsService {
 			(element) => element.mediaToggleScreenShare(active)
 		);
 		this.log.command('mediaToggleScreenShare', `(${active ?? ''})`);
+	}
+
+	// ── Recording ───────────────────────────────────────────────────────────
+
+	recordingStart(): void {
+		this.dispatch(
+			() => this.iframeHost.recordingStart(),
+			(element) => element.recordingStart()
+		);
+		this.log.command('recordingStart', '()');
+	}
+
+	recordingStop(): void {
+		this.dispatch(
+			() => this.iframeHost.recordingStop(),
+			(element) => element.recordingStop()
+		);
+		this.log.command('recordingStop', '()');
+	}
+
+	// ── Raise hand ──────────────────────────────────────────────────────────
+
+	participantHandRaise(): void {
+		this.dispatch(
+			() => this.iframeHost.participantHandRaise(),
+			(element) => element.participantHandRaise()
+		);
+		this.log.command('participantHandRaise', '()');
+	}
+
+	/** Lowers the hand of the participant identity above, or the own hand when it is empty. */
+	participantHandLower(): void {
+		const identity = this.participantIdentity().trim() || undefined;
+		this.dispatch(
+			() => this.iframeHost.participantHandLower(identity),
+			(element) => element.participantHandLower(identity)
+		);
+		this.log.command('participantHandLower', identity ? `("${identity}")` : '()');
+	}
+
+	participantHandLowerAll(): void {
+		this.dispatch(
+			() => this.iframeHost.participantHandLowerAll(),
+			(element) => element.participantHandLowerAll()
+		);
+		this.log.command('participantHandLowerAll', '()');
 	}
 
 	// ── Deprecated 3.8.0 spellings ──────────────────────────────────────────

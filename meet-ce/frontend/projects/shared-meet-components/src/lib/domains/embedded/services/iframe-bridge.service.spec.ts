@@ -1,6 +1,13 @@
 import { provideZonelessChangeDetection, signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { EmbeddedCommandName, EmbeddedEventName, LeftEventReason } from '@openvidu-meet/typings';
+import {
+	EmbeddedCommandName,
+	EmbeddedEventName,
+	LeftEventReason,
+	MeetParticipantModerationAction,
+	MeetRecordingStatus,
+	MeetRoomMemberRole
+} from '@openvidu-meet/typings';
 import { RuntimeConfigService } from '../../../shared/services/runtime-config.service';
 import { EmbeddedCommandService } from './embedded-command.service';
 import { EmbeddedEventBusService } from './embedded-event-bus.service';
@@ -39,18 +46,30 @@ describe('IframeBridgeService', () => {
 			'participantKick',
 			'participantMute',
 			'participantMuteAll',
+			'participantUpdateRole',
 			'mediaToggleAudio',
 			'mediaToggleVideo',
-			'mediaToggleScreenShare'
+			'mediaToggleScreenShare',
+			'recordingStart',
+			'recordingStop',
+			'participantHandRaise',
+			'participantHandLower',
+			'participantHandLowerAll'
 		]);
 		commandService.meetingEnd.and.resolveTo();
 		commandService.meetingLeave.and.resolveTo();
 		commandService.participantKick.and.resolveTo();
 		commandService.participantMute.and.resolveTo();
 		commandService.participantMuteAll.and.resolveTo();
+		commandService.participantUpdateRole.and.resolveTo();
 		commandService.mediaToggleAudio.and.resolveTo();
 		commandService.mediaToggleVideo.and.resolveTo();
 		commandService.mediaToggleScreenShare.and.resolveTo();
+		commandService.recordingStart.and.resolveTo();
+		commandService.recordingStop.and.resolveTo();
+		commandService.participantHandRaise.and.resolveTo();
+		commandService.participantHandLower.and.resolveTo();
+		commandService.participantHandLowerAll.and.resolveTo();
 
 		TestBed.configureTestingModule({
 			providers: [
@@ -293,6 +312,55 @@ describe('IframeBridgeService', () => {
 			});
 		});
 
+		describe('participant role command', () => {
+			it('forwards PARTICIPANT_UPDATE_ROLE with the participant identity and the action', () => {
+				startBridge();
+
+				postFromHost({
+					command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE,
+					payload: { participantIdentity: IDENTITY, action: MeetParticipantModerationAction.UPGRADE }
+				});
+
+				expect(commandService.participantUpdateRole).toHaveBeenCalledOnceWith(
+					IDENTITY,
+					MeetParticipantModerationAction.UPGRADE
+				);
+			});
+
+			it('ignores PARTICIPANT_UPDATE_ROLE without a participant identity', () => {
+				startBridge();
+
+				postFromHost({
+					command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE,
+					payload: { action: MeetParticipantModerationAction.DOWNGRADE }
+				});
+
+				expect(commandService.participantUpdateRole).not.toHaveBeenCalled();
+			});
+
+			it('ignores PARTICIPANT_UPDATE_ROLE without an action', () => {
+				startBridge();
+
+				postFromHost({
+					command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE,
+					payload: { participantIdentity: IDENTITY }
+				});
+
+				expect(commandService.participantUpdateRole).not.toHaveBeenCalled();
+			});
+
+			it('ignores PARTICIPANT_UPDATE_ROLE with an action the API does not define', () => {
+				startBridge();
+
+				postFromHost({
+					command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE,
+					payload: { participantIdentity: IDENTITY, action: 'moderator' }
+				});
+
+				expect(commandService.participantUpdateRole).not.toHaveBeenCalled();
+			});
+		});
+
 		// The bridge forwards without gating; phase and permission are enforced by EmbeddedCommandService.
 		describe('media toggle commands', () => {
 			it('forwards MEDIA_TOGGLE_AUDIO with its explicit active flag', () => {
@@ -352,6 +420,61 @@ describe('IframeBridgeService', () => {
 
 				expect(commandService.mediaToggleScreenShare).toHaveBeenCalledOnceWith(undefined);
 			});
+		});
+	});
+
+	describe('recording commands (host → app)', () => {
+		it('forwards RECORDING_START to the manager', () => {
+			startBridge();
+
+			postFromHost({ command: EmbeddedCommandName.RECORDING_START });
+
+			expect(commandService.recordingStart).toHaveBeenCalledTimes(1);
+		});
+
+		it('forwards RECORDING_STOP to the manager', () => {
+			startBridge();
+
+			postFromHost({ command: EmbeddedCommandName.RECORDING_STOP });
+
+			expect(commandService.recordingStop).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe('hand commands', () => {
+		it('forwards PARTICIPANT_HAND_RAISE', () => {
+			startBridge();
+
+			postFromHost({ command: EmbeddedCommandName.PARTICIPANT_HAND_RAISE });
+
+			expect(commandService.participantHandRaise).toHaveBeenCalledTimes(1);
+		});
+
+		it('forwards PARTICIPANT_HAND_LOWER with the participant it names', () => {
+			startBridge();
+
+			postFromHost({
+				command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER,
+				payload: { participantIdentity: 'bob' }
+			});
+
+			expect(commandService.participantHandLower).toHaveBeenCalledOnceWith('bob');
+		});
+
+		it('forwards PARTICIPANT_HAND_LOWER without payload as the own hand', () => {
+			startBridge();
+
+			postFromHost({ command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER });
+
+			expect(commandService.participantHandLower).toHaveBeenCalledOnceWith(undefined);
+		});
+
+		it('forwards PARTICIPANT_HAND_LOWER_ALL', () => {
+			startBridge();
+
+			postFromHost({ command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL });
+
+			expect(commandService.participantHandLowerAll).toHaveBeenCalledTimes(1);
 		});
 	});
 
@@ -443,6 +566,42 @@ describe('IframeBridgeService', () => {
 
 			const relayed = postMessageSpy.calls.allArgs().map(([msg]) => msg.event);
 			expect(relayed).toEqual([EmbeddedEventName.EMBEDDED_CLOSE_REQUESTED, EmbeddedEventName.CLOSED]);
+		});
+
+		it('relays RECORDING_STATUS_CHANGED once, since it has no deprecated alias', () => {
+			startBridge();
+
+			const payload = { recordingId: 'rec-1', status: MeetRecordingStatus.ACTIVE };
+			eventBus.emit({ event: EmbeddedEventName.RECORDING_STATUS_CHANGED, payload });
+			TestBed.tick();
+
+			expect(postMessageSpy.calls.allArgs()).toEqual([
+				[{ event: EmbeddedEventName.RECORDING_STATUS_CHANGED, payload }, PARENT_ORIGIN]
+			]);
+		});
+
+		it('relays PARTICIPANT_ROLE_CHANGED once, since it has no deprecated alias', () => {
+			startBridge();
+
+			const payload = {
+				roomId: ROOM_ID,
+				participant: {
+					participantIdentity: IDENTITY,
+					participantName: 'Alice',
+					role: MeetRoomMemberRole.MODERATOR,
+					joinDate: 1_620_000_000_000,
+					audioActive: true,
+					videoActive: false,
+					screenShareActive: false,
+					handRaised: false
+				}
+			};
+			eventBus.emit({ event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED, payload });
+			TestBed.tick();
+
+			expect(postMessageSpy.calls.allArgs()).toEqual([
+				[{ event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED, payload }, PARENT_ORIGIN]
+			]);
 		});
 
 		it('buffers events emitted before the bridge starts, then flushes canonical and legacy once it does', () => {

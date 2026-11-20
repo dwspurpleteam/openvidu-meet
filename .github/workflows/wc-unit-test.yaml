@@ -1,8 +1,7 @@
 name: WebComponent Unit Tests
 on:
   push:
-    branches: ['**']
-    tags-ignore: ['**']
+    branches: [main]
     paths: &wc-unit-test-paths
       - 'meet-ce/frontend/webcomponent/**'
       - '!meet-ce/frontend/webcomponent/tests/e2e/**'
@@ -12,6 +11,7 @@ on:
       - 'meet.sh'
       - '.github/workflows/wc-unit-test.yaml'
       - '!**/*.md'
+      - '!meet-ce/backend/**'
   pull_request:
     paths: *wc-unit-test-paths
   workflow_dispatch:
@@ -26,7 +26,7 @@ permissions:
 jobs:
   unit-test:
     name: WebComponent Unit Tests
-    runs-on: ${{ vars.LABEL_WORKER_SELFHOSTED }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -37,7 +37,7 @@ jobs:
         with:
           version: 11.8.0
       - name: Install safe-chain
-        uses: OpenVidu/actions/install-safe-chain@070fb73fda8fe7a08e28991b1c2d276f12a009ef # v1.0.22
+        uses: OpenVidu/actions/install-safe-chain@ccd21721ffb48bdeb889526d3a0b496c451ffd48 # v1.0.24
       - name: Checkout OpenVidu Meet
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -61,7 +61,3 @@ jobs:
       - name: Run ESLint
         if: always()
         run: ./meet.sh lint-webcomponent --skip-install
-
-      - name: Clean up
-        if: always()
-        uses: OpenVidu/actions/cleanup@070fb73fda8fe7a08e28991b1c2d276f12a009ef # v1.0.22

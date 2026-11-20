@@ -1,13 +1,21 @@
 import { inject, Service } from '@angular/core';
-import { EmbeddedCommandName, MeetParticipantMuteOptions, MeetRoomMemberPermissions } from '@openvidu-meet/typings';
+import {
+	EmbeddedCommandName,
+	MeetParticipantModerationAction,
+	MeetParticipantMuteOptions,
+	MeetRoomMemberPermissions
+} from '@openvidu-meet/typings';
 import {
 	LocalMediaService,
 	MeetingLiveKitService,
 	MeetingPhaseService,
 	ScreenShareService
 } from '../../meeting/openvidu-components';
+import { RecordingService as RecordingStateService } from '../../meeting/openvidu-components/services/recording/recording.service';
 import { MeetingContextService } from '../../meeting/services/meeting-context.service';
+import { MeetingHandService } from '../../meeting/services/meeting-hand.service';
 import { MeetingModerationService } from '../../meeting/services/meeting-moderation.service';
+import { RecordingService } from '../../recordings/services/recording.service';
 import { RoomMemberContextService } from '../../room-members/services/room-member-context.service';
 import { LoggerService } from '../../../shared/services/logger.service';
 
@@ -31,7 +39,11 @@ export class EmbeddedCommandService {
 	private readonly localMedia = inject(LocalMediaService);
 	private readonly screenShare = inject(ScreenShareService);
 	private readonly meetingPhase = inject(MeetingPhaseService);
+	private readonly recordingService = inject(RecordingService);
+	private readonly recordingState = inject(RecordingStateService);
+	private readonly handService = inject(MeetingHandService);
 	private readonly log = inject(LoggerService).get('EmbeddedCommandService');
+	private lastRecordingStart: Promise<void> | undefined;
 
 	async meetingEnd(): Promise<void> {
 		await this.run(EmbeddedCommandName.MEETING_END, 'meetingEnd', async () => {
@@ -89,6 +101,19 @@ export class EmbeddedCommandService {
 		});
 	}
 
+	async participantUpdateRole(participantIdentity: string, action: MeetParticipantModerationAction): Promise<void> {
+		await this.run(EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE, 'participantPromote', async () => {
+			const roomId = this.meetingContextService.roomId();
+
+			if (!participantIdentity || !roomId) {
+				this.log.w('participantUpdateRole() called without a participant identity or room id');
+				return;
+			}
+
+			await this.meetingModerationService.changeParticipantRole(roomId, participantIdentity, action);
+		});
+	}
+
 	async mediaToggleAudio(active?: boolean): Promise<void> {
 		await this.run(EmbeddedCommandName.MEDIA_TOGGLE_AUDIO, 'mediaPublishAudio', () =>
 			this.localMedia.setMicrophoneEnabled(this.resolveToggle(active, this.localMedia.microphone.enabled()))
@@ -105,6 +130,57 @@ export class EmbeddedCommandService {
 		await this.run(EmbeddedCommandName.MEDIA_TOGGLE_SCREEN_SHARE, 'mediaShareScreen', () =>
 			this.screenShare.setEnabled(this.resolveToggle(active, this.screenShare.enabled()))
 		);
+	}
+
+	async recordingStart(): Promise<void> {
+		await this.run(EmbeddedCommandName.RECORDING_START, 'recordingControl', async () => {
+			const roomId = this.meetingContextService.roomId();
+
+			if (!roomId) {
+				this.log.w('recordingStart() called but room id is undefined');
+				return;
+			}
+
+			this.lastRecordingStart = this.startRecording(roomId);
+			await this.lastRecordingStart;
+		});
+	}
+
+	async recordingStop(): Promise<void> {
+		await this.run(EmbeddedCommandName.RECORDING_STOP, 'recordingControl', async () => {
+			// A stop sent right after a start must name the recording that start is creating.
+			await this.lastRecordingStart?.catch(() => undefined);
+			const recordingId = this.recordingState.recordingStatus().id;
+
+			if (!recordingId) {
+				this.log.w('recordingStop() called but no recording is in progress');
+				return;
+			}
+
+			await this.recordingService.stopRecording(recordingId);
+		});
+	}
+
+	async participantHandRaise(): Promise<void> {
+		await this.run(EmbeddedCommandName.PARTICIPANT_HAND_RAISE, null, () => this.handService.raise());
+	}
+
+	async participantHandLower(participantIdentity?: string): Promise<void> {
+		const permission = this.handService.isOwn(participantIdentity) ? null : 'participantHandLower';
+		await this.run(EmbeddedCommandName.PARTICIPANT_HAND_LOWER, permission, () =>
+			this.handService.lower(participantIdentity)
+		);
+	}
+
+	async participantHandLowerAll(): Promise<void> {
+		await this.run(EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL, 'participantHandLower', () =>
+			this.handService.lowerAll()
+		);
+	}
+
+	private async startRecording(roomId: string): Promise<void> {
+		const { recordingId } = await this.recordingService.startRecording(roomId);
+		this.recordingState.setRecordingStarting(recordingId);
 	}
 
 	/** Anything other than an actual boolean (e.g. a webcomponent attribute string) means "toggle". */

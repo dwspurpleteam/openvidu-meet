@@ -1,11 +1,26 @@
-import { LeftEventReason, EmbeddedEventName, MeetEventOrigin } from '@openvidu-meet/typings';
-import { expect, test } from '@playwright/test';
+import {
+	EmbeddedEventName,
+	LeftEventReason,
+	MeetEventOrigin,
+	MeetParticipantJoinedPayload,
+	MeetParticipantLeftPayload,
+	MeetParticipantModerationAction,
+	MeetRecordingStatus,
+	MeetRoomMemberRole,
+	MeetWebhookEventType
+} from '@openvidu-meet/typings';
+import { expect, Locator, test } from '@playwright/test';
 import { INTEGRATIONS, meetLocator } from '../helpers/webcomponent.helper';
-import { createRoom, deleteRooms } from '../helpers/meet-api.helper';
+import { createRoom, deleteRooms, updateParticipantRole, waitForMeetingParticipant } from '../helpers/meet-api.helper';
+import { startRecording, stopRecording } from '../helpers/recordings.helper';
 import {
 	endMeetingCommand,
 	eventLocator,
+	eventPayloadField,
+	eventSequence,
 	expectEvent,
+	participantHandChangedLocator,
+	participantHandRaiseCommand,
 	joinedParticipantIdentity,
 	leaveMeeting,
 	leaveRoomCommand,
@@ -14,8 +29,11 @@ import {
 	mediaToggleVideoCommand,
 	openMeeting,
 	openMeetingAtMediaSetup,
-	participantMuteCommand
+	participantMuteCommand,
+	participantUpdateRoleCommand,
+	recordingStatusLocator
 } from '../helpers/testapp.helper';
+import { getWebhookFromStorage } from '../helpers/ui-utils.helper';
 
 // Events carry the same names/payloads regardless of transport; run every spec
 // against both integrations, selecting the mode through the testapp's UI.
@@ -139,6 +157,126 @@ for (const integration of INTEGRATIONS) {
 			});
 		});
 
+		test.describe('RECORDING_STATUS_CHANGED Event', () => {
+			// The status reaches everyone in the meeting, not only whoever started the recording.
+			test('should report the recording status to a participant who did not start it', async ({
+				page,
+				browser
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const moderatorContext = await browser.newContext();
+				const moderatorPage = await moderatorContext.newPage();
+				await openMeeting(moderatorPage, roomId, { role: 'moderator' });
+				await expectEvent(moderatorPage, EmbeddedEventName.JOINED);
+
+				await startRecording(moderatorPage);
+
+				const active = recordingStatusLocator(page, MeetRecordingStatus.ACTIVE);
+				await expect(active).toHaveCount(1, { timeout: 20_000 });
+				const recordingId = await eventPayloadField(active, 'recordingId');
+				await expect(recordingStatusLocator(moderatorPage, MeetRecordingStatus.ACTIVE)).toContainText(
+					recordingId
+				);
+
+				await stopRecording(moderatorPage);
+
+				await expect(recordingStatusLocator(page, MeetRecordingStatus.COMPLETE)).toContainText(recordingId, {
+					timeout: 20_000
+				});
+
+				await moderatorContext.close();
+			});
+
+			test('should report the current status, once and after meetingJoined, to a participant who joins while recording', async ({
+				page,
+				browser
+			}) => {
+				const moderatorContext = await browser.newContext();
+				const moderatorPage = await moderatorContext.newPage();
+				await openMeeting(moderatorPage, roomId, { role: 'moderator' });
+				await startRecording(moderatorPage);
+				await expect(recordingStatusLocator(moderatorPage, MeetRecordingStatus.ACTIVE)).toHaveCount(1, {
+					timeout: 20_000
+				});
+
+				await openMeeting(page, roomId, { integration, role: 'speaker' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const status = await expectEvent(page, EmbeddedEventName.RECORDING_STATUS_CHANGED);
+				await expect(status).toContainText(`"status":"${MeetRecordingStatus.ACTIVE}"`);
+				const lifecycle = (await eventSequence(page)).filter(
+					(name) =>
+						name === EmbeddedEventName.MEETING_JOINED || name === EmbeddedEventName.RECORDING_STATUS_CHANGED
+				);
+				expect(lifecycle).toEqual([
+					EmbeddedEventName.MEETING_JOINED,
+					EmbeddedEventName.RECORDING_STATUS_CHANGED
+				]);
+
+				await stopRecording(moderatorPage);
+
+				await expect(recordingStatusLocator(page, MeetRecordingStatus.COMPLETE)).toHaveCount(1, {
+					timeout: 20_000
+				});
+				await expect(recordingStatusLocator(page, MeetRecordingStatus.ACTIVE)).toHaveCount(1);
+
+				await moderatorContext.close();
+			});
+		});
+
+		test.describe('PARTICIPANT_HAND_CHANGED Event', () => {
+			test('should replay the raised hands in queue order, after meetingJoined, to a participant who joins later', async ({
+				page,
+				browser
+			}) => {
+				const contexts = [];
+				const identities: string[] = [];
+
+				for (const name of ['First', 'Second']) {
+					const context = await browser.newContext();
+					const speakerPage = await context.newPage();
+					await openMeeting(speakerPage, roomId, { role: 'speaker', name });
+					const identity = await joinedParticipantIdentity(speakerPage);
+					await participantHandRaiseCommand(speakerPage);
+					await expect(participantHandChangedLocator(speakerPage, identity, true)).toHaveCount(1, {
+						timeout: 15_000
+					});
+					identities.push(identity);
+					contexts.push(context);
+				}
+
+				await openMeeting(page, roomId, { integration, role: 'speaker', name: 'Late' });
+				await expectEvent(page, EmbeddedEventName.JOINED);
+
+				const hands = await expectEvent(page, EmbeddedEventName.PARTICIPANT_HAND_CHANGED, {
+					count: 2,
+					timeout: 15_000
+				});
+				await expect(hands.nth(0)).toContainText(identities[0]);
+				await expect(hands.nth(1)).toContainText(identities[1]);
+				const [first, second] = (await hands.allTextContents()).map(
+					(payload) => JSON.parse(payload).participant.handRaiseDate
+				);
+				expect(first).toBeLessThan(second);
+
+				const lifecycle = (await eventSequence(page)).filter(
+					(name) =>
+						name === EmbeddedEventName.MEETING_JOINED || name === EmbeddedEventName.PARTICIPANT_HAND_CHANGED
+				);
+				expect(lifecycle).toEqual([
+					EmbeddedEventName.MEETING_JOINED,
+					EmbeddedEventName.PARTICIPANT_HAND_CHANGED,
+					EmbeddedEventName.PARTICIPANT_HAND_CHANGED
+				]);
+
+				for (const context of contexts) {
+					await context.close();
+				}
+			});
+		});
+
 		test.describe('Event Sequences', () => {
 			test('should receive events in correct order: joined -> left', async ({ page }) => {
 				await openMeeting(page, roomId, { integration, role: 'moderator' });
@@ -251,8 +389,90 @@ for (const integration of INTEGRATIONS) {
 				const left = await expectEvent(page, EmbeddedEventName.PARTICIPANT_LEFT);
 				await expect(left).toContainText(speakerName);
 				await expect(left).toContainText('crm-user_42');
+				await expect(left).toContainText(`"leaveReason":"${LeftEventReason.VOLUNTARY_LEAVE}"`);
+
+				// Each event carries the participant its webhook carries, minus what only the server knows.
+				const [joinedWebhook, leftWebhook] = await Promise.all([
+					getWebhookFromStorage(page, roomId, MeetWebhookEventType.PARTICIPANT_JOINED, { matchIndex: 1 }),
+					getWebhookFromStorage(page, roomId, MeetWebhookEventType.PARTICIPANT_LEFT)
+				]);
+				const eventParticipant = async (event: Locator) =>
+					JSON.parse((await event.textContent()) ?? '').participant;
+				expect(await eventParticipant(joined)).toEqual(
+					(joinedWebhook.data as MeetParticipantJoinedPayload).participant
+				);
+				expect((leftWebhook.data as MeetParticipantLeftPayload).participant).toMatchObject(
+					await eventParticipant(left)
+				);
 
 				await speakerContext.close();
+			});
+		});
+
+		// The role describes the LOCAL participant, like their devices do: neither the moderator who
+		// changed it nor anyone else in the meeting hears about it.
+		test.describe('PARTICIPANT_ROLE_CHANGED Event', () => {
+			test('should tell only the participant whose role changed', async ({ page, browser }) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker', name: 'Promoted' });
+				const promotedIdentity = await joinedParticipantIdentity(page);
+
+				const moderatorContext = await browser.newContext();
+				const moderatorPage = await moderatorContext.newPage();
+				await openMeeting(moderatorPage, roomId, { role: 'moderator' });
+				await expectEvent(moderatorPage, EmbeddedEventName.JOINED);
+
+				await participantUpdateRoleCommand(
+					moderatorPage,
+					promotedIdentity,
+					MeetParticipantModerationAction.UPGRADE
+				);
+
+				const roleChanged = await expectEvent(page, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED);
+				await expect(roleChanged).toContainText(`"roomId":"${roomId}"`);
+				await expect(roleChanged).toContainText(`"participantIdentity":"${promotedIdentity}"`);
+				await expect(roleChanged).toContainText(`"role":"${MeetRoomMemberRole.MODERATOR}"`);
+				await expect(roleChanged).toContainText('"audioActive":');
+				await expect(roleChanged).toContainText('"handRaised":false');
+
+				await expect(eventLocator(moderatorPage, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED)).toHaveCount(0);
+
+				await moderatorContext.close();
+			});
+
+			test('should tell a participant promoted while still joining', async ({ page }) => {
+				const { meet, participantName } = await openMeetingAtMediaSetup(page, roomId, {
+					integration,
+					role: 'speaker'
+				});
+				await meet('#join-button').click();
+
+				const identity = await waitForMeetingParticipant(roomId, participantName);
+				await updateParticipantRole(roomId, identity, MeetParticipantModerationAction.UPGRADE);
+
+				const roleChanged = await expectEvent(page, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED, {
+					timeout: 15_000
+				});
+				await expect(roleChanged).toContainText(`"role":"${MeetRoomMemberRole.MODERATOR}"`);
+			});
+
+			test('should keep a promoted participant in the meeting while their new token cannot be fetched', async ({
+				page
+			}) => {
+				await openMeeting(page, roomId, { integration, role: 'speaker' });
+				const identity = await joinedParticipantIdentity(page);
+
+				let unreachableRefreshes = 2;
+				await page.route('**/members/token/refresh', (route) =>
+					unreachableRefreshes-- > 0 ? route.abort('internetdisconnected') : route.continue()
+				);
+				await updateParticipantRole(roomId, identity, MeetParticipantModerationAction.UPGRADE);
+
+				const roleChanged = await expectEvent(page, EmbeddedEventName.PARTICIPANT_ROLE_CHANGED, {
+					timeout: 15_000
+				});
+				await expect(roleChanged).toContainText(`"role":"${MeetRoomMemberRole.MODERATOR}"`);
+				expect(unreachableRefreshes).toBeLessThan(0);
+				await expect(eventLocator(page, EmbeddedEventName.MEETING_LEFT)).toHaveCount(0);
 			});
 		});
 

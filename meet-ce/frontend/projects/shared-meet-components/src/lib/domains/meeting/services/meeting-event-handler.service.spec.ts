@@ -1,13 +1,25 @@
 import { provideZonelessChangeDetection, signal, WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
+	EmbeddedEvent,
 	EmbeddedEventName,
 	LeftEventReason,
+	loweredHandAttributes,
 	MeetEventOrigin,
+	MeetParticipantInfo,
 	MeetParticipantMediaMutedPayload,
 	MeetParticipantMuteOptions,
-	MeetSignalType
+	MeetRecordingInfo,
+	MeetRecordingStatus,
+	MeetRecordingUpdatedPayload,
+	MeetRoomMemberRole,
+	MeetRoomMemberUIBadge,
+	MeetSignalPayload,
+	MeetSignalType,
+	raisedHandAttributes
 } from '@openvidu-meet/typings';
+import { Subject } from 'rxjs';
+import type { ShownNotification } from '../../../shared/models/notification.model';
 import { TranslateService } from '../../../shared/services/i18n/translate.service';
 import { LoggerService } from '../../../shared/services/logger.service';
 import { NavigationService } from '../../../shared/services/navigation.service';
@@ -18,14 +30,25 @@ import { EmbeddedEventBusService } from '../../embedded/services/embedded-event-
 import { RecordingService } from '../../recordings/services/recording.service';
 import { RoomMemberContextService } from '../../room-members/services/room-member-context.service';
 import { RoomFeatureService } from '../../rooms/services/room-feature.service';
+import type { Participant } from '../openvidu-components';
 import {
+	ConnectionState,
+	DisconnectReason,
 	LocalMediaService,
 	ScreenShareService,
 	MeetingEndingSoonService,
-	ParticipantLeftReason
+	ParticipantLeftReason,
+	ParticipantModel,
+	Room,
+	RoomEvent
 } from '../openvidu-components';
+import {
+	MeetingEventsService,
+	MeetSignal
+} from '../openvidu-components/services/meeting-events/meeting-events.service';
 import { MeetingContextService } from './meeting-context.service';
 import { MeetingEventHandlerService } from './meeting-event-handler.service';
+import { MeetingHandService } from './meeting-hand.service';
 import { MeetingStateService } from './meeting-state.service';
 
 class LoggerServiceStub {
@@ -50,6 +73,7 @@ describe('MeetingEventHandlerService', () => {
 	};
 	let screenShare: { setEnabled: jasmine.Spy; enabled: WritableSignal<boolean> };
 	let notificationService: jasmine.SpyObj<NotificationService>;
+	let notificationsOnScreen: WritableSignal<ShownNotification[]>;
 	let meetingEndingSoon: jasmine.SpyObj<MeetingEndingSoonService>;
 	let soundService: jasmine.SpyObj<SoundService>;
 	let microphoneEnabled: WritableSignal<boolean>;
@@ -58,24 +82,37 @@ describe('MeetingEventHandlerService', () => {
 	let endedBySelf: WritableSignal<boolean>;
 	let meetingEndsAt: WritableSignal<number | undefined>;
 	let serverTimeSkewMs: WritableSignal<number>;
+	let isEmbeddedMode: boolean;
+	let meetSignals: Subject<MeetSignal>;
 	let meetingContextStub: {
 		endedBySelf: () => boolean;
 		markMeetingEndedBySelf: jasmine.Spy;
 		meetingEndsAt: () => number | undefined;
 		setMeetingStartedAt: jasmine.Spy;
 		setMeetingEndsAt: jasmine.Spy;
+		setHasRecordings: jasmine.Spy;
 		roomId: () => string;
 		clearMeetingContext: jasmine.Spy;
 	};
 	let navigationServiceStub: { goToDisconnected: jasmine.Spy };
+	let refreshToken: jasmine.Spy;
+	let permissions: WritableSignal<Record<string, boolean>>;
+	let meetingHand: jasmine.SpyObj<MeetingHandService>;
+	let lkRoom: WritableSignal<Room | undefined>;
 
 	beforeEach(() => {
+		permissions = signal({});
+		meetingHand = jasmine.createSpyObj<MeetingHandService>('MeetingHandService', ['lower']);
+		meetingHand.lower.and.resolveTo();
+		lkRoom = signal<Room | undefined>(undefined);
 		microphoneEnabled = signal(true);
 		cameraEnabled = signal(true);
 		screenShareEnabled = signal(false);
 		endedBySelf = signal(false);
 		meetingEndsAt = signal<number | undefined>(undefined);
 		serverTimeSkewMs = signal(0);
+		isEmbeddedMode = true;
+		meetSignals = new Subject<MeetSignal>();
 		meetingContextStub = {
 			endedBySelf: () => endedBySelf(),
 			markMeetingEndedBySelf: jasmine.createSpy('markMeetingEndedBySelf').and.callFake(() => {
@@ -86,12 +123,14 @@ describe('MeetingEventHandlerService', () => {
 			setMeetingEndsAt: jasmine.createSpy('setMeetingEndsAt').and.callFake((endsAt?: number) => {
 				meetingEndsAt.set(endsAt);
 			}),
+			setHasRecordings: jasmine.createSpy('setHasRecordings'),
 			roomId: () => 'room1',
 			clearMeetingContext: jasmine.createSpy('clearMeetingContext')
 		};
 		navigationServiceStub = {
 			goToDisconnected: jasmine.createSpy('goToDisconnected').and.resolveTo(undefined)
 		};
+		refreshToken = jasmine.createSpy('refreshToken').and.resolveTo(undefined);
 		localMedia = {
 			setMicrophoneEnabled: jasmine.createSpy('setMicrophoneEnabled').and.callFake(async (enabled: boolean) => {
 				localMedia.microphone.wanted.set(enabled);
@@ -117,7 +156,12 @@ describe('MeetingEventHandlerService', () => {
 			enabled: screenShareEnabled
 		};
 
-		notificationService = jasmine.createSpyObj<NotificationService>('NotificationService', ['showMessage']);
+		notificationsOnScreen = signal([]);
+		notificationService = jasmine.createSpyObj<NotificationService>(
+			'NotificationService',
+			['showMessage', 'showNotification', 'updateNotification', 'dismissNotification'],
+			{ notifications: notificationsOnScreen.asReadonly() }
+		);
 		meetingEndingSoon = jasmine.createSpyObj<MeetingEndingSoonService>('MeetingEndingSoonService', [
 			'trackMeetingEnd'
 		]);
@@ -125,7 +169,8 @@ describe('MeetingEventHandlerService', () => {
 			'playParticipantJoinedSound',
 			'playParticipantRoleUpgradedSound',
 			'playParticipantRoleDowngradedSound',
-			'playMeetingEndingSoonSound'
+			'playMeetingEndingSoonSound',
+			'playHandRaisedSound'
 		]);
 
 		TestBed.configureTestingModule({
@@ -136,12 +181,34 @@ describe('MeetingEventHandlerService', () => {
 				{ provide: LoggerService, useClass: LoggerServiceStub },
 				{ provide: LocalMediaService, useValue: localMedia },
 				{ provide: ScreenShareService, useValue: screenShare },
-				{ provide: RuntimeConfigService, useValue: { isEmbeddedMode: () => true } },
+				{ provide: RuntimeConfigService, useValue: { isEmbeddedMode: () => isEmbeddedMode } },
+				{ provide: MeetingEventsService, useValue: { meetSignals$: meetSignals.asObservable() } },
 				{ provide: MeetingContextService, useValue: meetingContextStub },
-				{ provide: MeetingStateService, useValue: { clear: () => {} } },
+				{
+					provide: MeetingStateService,
+					useValue: {
+						clear: () => {},
+						localParticipant: () => ({ identity: 'alice' }),
+						remoteParticipants: () => [],
+						lkRoom
+					}
+				},
 				{ provide: RoomFeatureService, useValue: {} },
 				{ provide: RecordingService, useValue: {} },
-				{ provide: RoomMemberContextService, useValue: { serverTimeSkewMs } },
+				{
+					provide: RoomMemberContextService,
+					useValue: {
+						serverTimeSkewMs,
+						refreshToken,
+						updateTokenInMeeting: (update: () => Promise<string>) =>
+							update().then(
+								() => true,
+								() => false
+							),
+						hasPermission: (permission: string) => permissions()[permission] ?? false
+					}
+				},
+				{ provide: MeetingHandService, useValue: meetingHand },
 				{ provide: NavigationService, useValue: navigationServiceStub },
 				{ provide: NotificationService, useValue: notificationService },
 				{ provide: MeetingEndingSoonService, useValue: meetingEndingSoon },
@@ -158,6 +225,11 @@ describe('MeetingEventHandlerService', () => {
 	function seedMediaStatus(): void {
 		TestBed.tick();
 		eventBus.drain();
+	}
+
+	/** Delivers a server signal the way the bound room relays it. */
+	function receiveSignal(topic: MeetSignalType, payload: MeetSignalPayload): void {
+		meetSignals.next({ topic, payload });
 	}
 
 	function muteFromModerator(media: MeetParticipantMuteOptions): Promise<void> {
@@ -299,47 +371,793 @@ describe('MeetingEventHandlerService', () => {
 		});
 	});
 
-	describe('signal sender', () => {
-		function receiveMuteSignal(from?: { identity: string }): void {
-			let onData: ((...args: unknown[]) => void) | undefined;
-			const room = {
-				on: (event: string, handler: (...args: unknown[]) => void) => {
-					if (event === 'dataReceived') onData = handler;
-				}
-			};
-			service.setupRoomListeners(room as never);
+	// The bound room only relays what the server itself sent (MeetingEventsService discards a
+	// packet relayed from a participant), so a signal arriving here carries the server's authority.
+	describe('server signals', () => {
+		it('mutes on the moderator mute signal', async () => {
+			seedMediaStatus();
+
 			const payload: MeetParticipantMediaMutedPayload = {
 				roomId: 'room1',
 				media: { audioActive: false },
 				timestamp: 0
 			};
-			onData!(
-				new TextEncoder().encode(JSON.stringify(payload)),
-				from,
-				undefined,
-				MeetSignalType.MEET_PARTICIPANT_MEDIA_MUTED
-			);
-		}
-
-		it('mutes when the server sent the signal', async () => {
-			seedMediaStatus();
-
-			receiveMuteSignal();
+			receiveSignal(MeetSignalType.MEET_PARTICIPANT_MEDIA_MUTED, payload);
 			await Promise.resolve();
 
 			expect(localMedia.setMicrophoneEnabled).toHaveBeenCalledWith(false);
 		});
+	});
 
-		// `participantMute` is the only thing standing between a speaker and everyone's microphone,
-		// and `chatWrite` already lets them publish data on any topic.
-		it('ignores a signal relayed from another participant', async () => {
-			seedMediaStatus();
+	/**
+	 * A promotion or demotion reaches the local participant as their own LiveKit metadata, which the
+	 * connection hands over on joining and keeps up to date.
+	 */
+	describe('role changed', () => {
+		const speakerMetadata = JSON.stringify({ badge: MeetRoomMemberUIBadge.OTHER });
+		const promotedMetadata = JSON.stringify({ badge: MeetRoomMemberUIBadge.MODERATOR, isPromotedModerator: true });
+		const moderatorMetadata = JSON.stringify({ badge: MeetRoomMemberUIBadge.MODERATOR });
+		let localParticipant: Record<string, unknown> & { metadata: string };
+		let onParticipantMetadataChanged: (prevMetadata: string | undefined, participant: unknown) => void;
 
-			receiveMuteSignal({ identity: 'speaker1' });
+		/** Connects as alice with `metadata`, the metadata LiveKit holds for her when the meeting connects. */
+		function connect(metadata = speakerMetadata): void {
+			localParticipant = {
+				identity: 'alice',
+				name: 'Alice',
+				metadata,
+				attributes: {},
+				isMicrophoneEnabled: true,
+				isCameraEnabled: false,
+				isScreenShareEnabled: false
+			};
+			service.setupRoomListeners({
+				localParticipant,
+				on: (event: string, handler: typeof onParticipantMetadataChanged) => {
+					if (event === RoomEvent.ParticipantMetadataChanged) onParticipantMetadataChanged = handler;
+				}
+			} as never);
+		}
+
+		function changeLocalMetadata(metadata: string): void {
+			localParticipant.metadata = metadata;
+			onParticipantMetadataChanged(undefined, localParticipant);
+		}
+
+		const settle = () => new Promise<void>((resolve) => setTimeout(resolve));
+
+		function roleChanged(role: MeetRoomMemberRole): jasmine.ExpectedRecursive<EmbeddedEvent> {
+			return {
+				event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED,
+				payload: {
+					roomId: 'room1',
+					participant: jasmine.objectContaining<MeetParticipantInfo>({ participantIdentity: 'alice', role })
+				}
+			};
+		}
+
+		it('tells the host the local participant was promoted to moderator', async () => {
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+
+			expect(refreshToken).toHaveBeenCalledOnceWith('room1');
+			expect(eventBus.events()).toEqual([roleChanged(MeetRoomMemberRole.MODERATOR)]);
+		});
+
+		it('carries the local participant as a live snapshot, media and hand included', async () => {
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+
+			expect(eventBus.events()).toEqual([
+				{
+					event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED,
+					payload: {
+						roomId: 'room1',
+						participant: {
+							participantIdentity: 'alice',
+							participantName: 'Alice',
+							externalId: undefined,
+							metadata: undefined,
+							role: MeetRoomMemberRole.MODERATOR,
+							joinDate: 0,
+							audioActive: true,
+							videoActive: false,
+							screenShareActive: false,
+							handRaised: false
+						}
+					}
+				}
+			]);
+		});
+
+		it('tells the host the local participant was returned to the speaker role', async () => {
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			eventBus.drain();
+
+			changeLocalMetadata(speakerMetadata);
+			await settle();
+
+			expect(notificationService.showMessage).toHaveBeenCalledWith('MODERATION.MODERATOR_ROLE_REMOVED');
+			expect(eventBus.events()).toEqual([roleChanged(MeetRoomMemberRole.SPEAKER)]);
+		});
+
+		it('tells a participant promoted while still joining', async () => {
+			connect(promotedMetadata);
+			await settle();
+
+			expect(refreshToken).toHaveBeenCalledOnceWith('room1');
+			expect(eventBus.events()).toEqual([roleChanged(MeetRoomMemberRole.MODERATOR)]);
+		});
+
+		it('replaces the notice of the previous role change instead of stacking another', async () => {
+			notificationService.showMessage.and.returnValues(1, 2);
+
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			changeLocalMetadata(speakerMetadata);
+			await settle();
+
+			expect(notificationService.dismissNotification).toHaveBeenCalledOnceWith(1);
+			expect(notificationService.showMessage).toHaveBeenCalledTimes(2);
+		});
+
+		it('says nothing when the base role of the participant changes', async () => {
+			connect();
+			changeLocalMetadata(moderatorMetadata);
+			await settle();
+
+			expect(refreshToken).not.toHaveBeenCalled();
+			expect(notificationService.showMessage).not.toHaveBeenCalled();
+			expect(eventBus.events()).toEqual([]);
+		});
+
+		it('says nothing when a promoted participant gets moderator as their base role', async () => {
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			eventBus.drain();
+			notificationService.showMessage.calls.reset();
+
+			changeLocalMetadata(moderatorMetadata);
+			await settle();
+
+			expect(notificationService.showMessage).not.toHaveBeenCalled();
+			expect(eventBus.events()).toEqual([]);
+		});
+
+		it('ignores the metadata of a remote participant', async () => {
+			connect();
+			onParticipantMetadataChanged(undefined, { identity: 'bob', metadata: promotedMetadata });
+			await settle();
+
+			expect(refreshToken).not.toHaveBeenCalled();
+			expect(eventBus.events()).toEqual([]);
+		});
+
+		// A host reacting to the event (e.g. by sending a moderator command) must find the new
+		// permissions already in place.
+		it('waits for the refreshed token before telling the host', async () => {
+			let completeRefresh!: () => void;
+			refreshToken.and.returnValue(new Promise<void>((resolve) => (completeRefresh = resolve)));
+
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			expect(eventBus.events()).toEqual([]);
+
+			completeRefresh();
+			await settle();
+			expect(eventBus.events()).toEqual([roleChanged(MeetRoomMemberRole.MODERATOR)]);
+		});
+
+		it('tells the participant and the host nothing when the token cannot be refreshed', async () => {
+			refreshToken.and.rejectWith(new Error('unreachable'));
+
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+
+			expect(notificationService.showMessage).not.toHaveBeenCalled();
+			expect(eventBus.events()).toEqual([]);
+		});
+
+		// Promoted and demoted back in quick succession: the demotion arrives while the refresh started
+		// for the promotion is still pending.
+		it('reports the last role change when the demotion arrives before the promotion is applied', async () => {
+			const pendingRefreshes: Array<() => void> = [];
+			refreshToken.and.callFake(() => new Promise<void>((resolve) => pendingRefreshes.push(resolve)));
+
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			changeLocalMetadata(speakerMetadata);
+			await settle();
+
+			while (pendingRefreshes.length > 0) {
+				pendingRefreshes.pop()!();
+				await settle();
+			}
+
+			expect(eventBus.events().at(-1)).toEqual(roleChanged(MeetRoomMemberRole.SPEAKER));
+		});
+
+		it('starts every entry as the role the participant joined with', async () => {
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+			await service.onParticipantLeft({
+				roomName: 'room1',
+				participantName: 'Alice',
+				identity: 'alice',
+				reason: ParticipantLeftReason.LEAVE
+			});
+			eventBus.drain();
+			refreshToken.calls.reset();
+
+			connect();
+			await settle();
+
+			expect(refreshToken).not.toHaveBeenCalled();
+			expect(eventBus.events()).toEqual([]);
+		});
+
+		it('only notifies the participant, not a host, outside the embedded modes', async () => {
+			isEmbeddedMode = false;
+
+			connect();
+			changeLocalMetadata(promotedMetadata);
+			await settle();
+
+			expect(notificationService.showMessage).toHaveBeenCalledOnceWith('MODERATION.PROMOTED_TO_MODERATOR');
+			expect(eventBus.events()).toEqual([]);
+		});
+	});
+
+	/**
+	 * The recording's status reaches every participant as a server signal carrying the whole
+	 * recording; the host is told of each status the signal brings, once, and none before it knows the
+	 * participant joined.
+	 */
+	describe('recording status', () => {
+		function receiveRecordingStatus(status: MeetRecordingStatus, recordingId = 'rec-1', roomId = 'room1'): void {
+			const payload: MeetRecordingUpdatedPayload = {
+				roomId,
+				recording: { recordingId, roomId, roomName: roomId, status } as MeetRecordingInfo,
+				timestamp: 0
+			};
+			receiveSignal(MeetSignalType.MEET_RECORDING_UPDATED, payload);
+		}
+
+		function notifiedStatuses(): { recordingId: string; status: MeetRecordingStatus }[] {
+			return eventBus
+				.events()
+				.filter((event) => event.event === EmbeddedEventName.RECORDING_STATUS_CHANGED)
+				.map(
+					(event) =>
+						('payload' in event ? event.payload : undefined) as {
+							recordingId: string;
+							status: MeetRecordingStatus;
+						}
+				);
+		}
+
+		function joinMeeting(): void {
+			service.onParticipantConnected({ roomName: 'room1', identity: 'alice' } as ParticipantModel);
+		}
+
+		function leaveMeeting(): Promise<void> {
+			return service.onParticipantLeft({
+				roomName: 'room1',
+				participantName: 'Alice',
+				identity: 'alice',
+				reason: ParticipantLeftReason.LEAVE
+			});
+		}
+
+		describe('in the meeting', () => {
+			beforeEach(() => {
+				joinMeeting();
+				eventBus.drain();
+			});
+
+			for (const status of Object.values(MeetRecordingStatus)) {
+				it(`notifies the host of a recording that is '${status}'`, () => {
+					receiveRecordingStatus(status);
+
+					expect(notifiedStatuses()).toEqual([{ recordingId: 'rec-1', status }]);
+				});
+			}
+
+			it('notifies every status transition, in order', () => {
+				receiveRecordingStatus(MeetRecordingStatus.STARTING);
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				receiveRecordingStatus(MeetRecordingStatus.ENDING);
+				receiveRecordingStatus(MeetRecordingStatus.COMPLETE);
+
+				expect(notifiedStatuses().map(({ status }) => status)).toEqual([
+					MeetRecordingStatus.STARTING,
+					MeetRecordingStatus.ACTIVE,
+					MeetRecordingStatus.ENDING,
+					MeetRecordingStatus.COMPLETE
+				]);
+			});
+
+			// The server repeats the current status to a participant who joins mid-recording or reconnects.
+			it('does not repeat a status the host already knows', () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+
+				expect(notifiedStatuses().length).toBe(1);
+			});
+
+			// The server repeats the current status on join and relays egress webhooks that can arrive late.
+			it('never walks a recording back to an earlier status', () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				receiveRecordingStatus(MeetRecordingStatus.STARTING);
+				receiveRecordingStatus(MeetRecordingStatus.ENDING);
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				receiveRecordingStatus(MeetRecordingStatus.COMPLETE);
+				receiveRecordingStatus(MeetRecordingStatus.ENDING);
+				receiveRecordingStatus(MeetRecordingStatus.FAILED);
+
+				expect(notifiedStatuses().map(({ status }) => status)).toEqual([
+					MeetRecordingStatus.ACTIVE,
+					MeetRecordingStatus.ENDING,
+					MeetRecordingStatus.COMPLETE
+				]);
+			});
+
+			it('tells a new recording apart from the previous one in the same status', () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE, 'rec-1');
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE, 'rec-2');
+
+				expect(notifiedStatuses().map(({ recordingId }) => recordingId)).toEqual(['rec-1', 'rec-2']);
+			});
+
+			it('starts over on the next entry, once the host knows it joined again', async () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				await leaveMeeting();
+				eventBus.drain();
+
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				expect(notifiedStatuses()).toEqual([]);
+
+				joinMeeting();
+				expect(notifiedStatuses().length).toBe(1);
+			});
+
+			it("ignores another room's recording", () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE, 'rec-1', 'room2');
+
+				expect(notifiedStatuses()).toEqual([]);
+			});
+
+			it('marks the meeting as having recordings once one completes', () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				expect(meetingContextStub.setHasRecordings).not.toHaveBeenCalled();
+
+				receiveRecordingStatus(MeetRecordingStatus.COMPLETE);
+				expect(meetingContextStub.setHasRecordings).toHaveBeenCalledOnceWith(true);
+			});
+
+			it('tells the host nothing outside the embedded modes, but still tracks the recordings', () => {
+				isEmbeddedMode = false;
+
+				receiveRecordingStatus(MeetRecordingStatus.COMPLETE);
+
+				expect(eventBus.events()).toEqual([]);
+				expect(meetingContextStub.setHasRecordings).toHaveBeenCalledOnceWith(true);
+			});
+		});
+
+		// The server repeats the current status from the participant_joined webhook, while the
+		// participant is still connecting.
+		describe('on joining', () => {
+			it('reports a recording already underway right after meetingJoined', () => {
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE);
+				expect(eventBus.events()).toEqual([]);
+
+				joinMeeting();
+
+				expect(eventBus.events().map(({ event }) => event)).toEqual([
+					EmbeddedEventName.MEETING_JOINED,
+					EmbeddedEventName.RECORDING_STATUS_CHANGED
+				]);
+				expect(notifiedStatuses()).toEqual([{ recordingId: 'rec-1', status: MeetRecordingStatus.ACTIVE }]);
+			});
+
+			it('reports only the furthest status each recording reached while joining', () => {
+				receiveRecordingStatus(MeetRecordingStatus.STARTING, 'rec-1');
+				receiveRecordingStatus(MeetRecordingStatus.ACTIVE, 'rec-1');
+				receiveRecordingStatus(MeetRecordingStatus.STARTING, 'rec-2');
+
+				joinMeeting();
+
+				expect(notifiedStatuses()).toEqual([
+					{ recordingId: 'rec-1', status: MeetRecordingStatus.ACTIVE },
+					{ recordingId: 'rec-2', status: MeetRecordingStatus.STARTING }
+				]);
+			});
+		});
+	});
+
+	/**
+	 * A hand lives in the participant's LiveKit attributes, which the server writes and LiveKit hands
+	 * to every client. The handler reads them off the attribute change: whether the hand is up, who
+	 * lowered it, and where it sits in the queue.
+	 */
+	describe('raised hands', () => {
+		interface FakeParticipant {
+			identity: string;
+			name: string;
+			isLocal: boolean;
+			metadata: undefined;
+			attributes: Record<string, string>;
+			isMicrophoneEnabled: boolean;
+			isCameraEnabled: boolean;
+			isScreenShareEnabled: boolean;
+		}
+
+		let listeners: Map<string, (...args: unknown[]) => void>;
+		let alice: FakeParticipant;
+		let bob: FakeParticipant;
+
+		const fakeParticipant = (identity: string, isLocal: boolean): FakeParticipant => ({
+			identity,
+			name: identity,
+			isLocal,
+			metadata: undefined,
+			attributes: {},
+			isMicrophoneEnabled: false,
+			isCameraEnabled: true,
+			isScreenShareEnabled: false
+		});
+
+		function changeHand(participant: FakeParticipant, attributes: Record<string, string>): void {
+			Object.assign(participant.attributes, attributes);
+			listeners.get(RoomEvent.ParticipantAttributesChanged)!(attributes, participant as unknown as Participant);
+		}
+
+		function handEvents(): unknown[] {
+			return eventBus
+				.events()
+				.filter((event) => event.event === EmbeddedEventName.PARTICIPANT_HAND_CHANGED)
+				.map((event) => ('payload' in event ? event.payload : undefined));
+		}
+
+		function joinMeeting(): void {
+			service.onParticipantConnected({ roomName: 'room1', identity: 'alice' } as ParticipantModel);
+		}
+
+		function lastNoticeUpdate() {
+			const [id, notice] = notificationService.updateNotification.calls.mostRecent().args;
+			return { id, message: notice.message, action: notice.action };
+		}
+
+		beforeEach(() => {
+			let nextNoticeId = 7;
+			notificationService.showNotification.and.callFake((notice) => {
+				const id = nextNoticeId++;
+				notificationsOnScreen.update((shown) => [...shown, { ...notice, id }]);
+				return id;
+			});
+			notificationService.dismissNotification.and.callFake((id) =>
+				notificationsOnScreen.update((shown) => shown.filter((notice) => notice.id !== id))
+			);
+
+			alice = fakeParticipant('alice', true);
+			bob = fakeParticipant('bob', false);
+			lkRoom.set({
+				localParticipant: alice,
+				remoteParticipants: new Map([['bob', bob]])
+			} as unknown as Room);
+			listeners = new Map();
+			const room = {
+				metadata: undefined,
+				localParticipant: alice,
+				on: (event: string, listener: (...args: unknown[]) => void) => {
+					listeners.set(event, listener);
+					return room;
+				}
+			};
+			service.setupRoomListeners(room as unknown as Room);
+			joinMeeting();
+			eventBus.drain();
+		});
+
+		it('tells the host a hand went up, with the live snapshot of its participant', () => {
+			changeHand(alice, raisedHandAttributes(1000));
+			changeHand(bob, raisedHandAttributes(2000));
+
+			expect(handEvents()).toEqual([
+				{
+					roomId: 'room1',
+					participant: jasmine.objectContaining({
+						participantIdentity: 'alice',
+						audioActive: false,
+						videoActive: true,
+						screenShareActive: false,
+						handRaised: true,
+						handRaiseDate: 1000
+					}),
+					origin: MeetEventOrigin.PARTICIPANT
+				},
+				{
+					roomId: 'room1',
+					participant: jasmine.objectContaining({
+						participantIdentity: 'bob',
+						handRaised: true,
+						handRaiseDate: 2000
+					}),
+					origin: MeetEventOrigin.PARTICIPANT
+				}
+			]);
+		});
+
+		it('attributes a lowered hand to whoever lowered it', () => {
+			changeHand(bob, raisedHandAttributes(1000));
+			eventBus.drain();
+
+			changeHand(bob, loweredHandAttributes(MeetEventOrigin.MODERATOR));
+			changeHand(alice, raisedHandAttributes(2000));
+			changeHand(alice, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+
+			const [bobLowered, , aliceLowered] = handEvents();
+			expect(bobLowered).toEqual({
+				roomId: 'room1',
+				participant: jasmine.objectContaining({ participantIdentity: 'bob', handRaised: false }),
+				origin: MeetEventOrigin.MODERATOR
+			});
+			expect(aliceLowered).toEqual({
+				roomId: 'room1',
+				participant: jasmine.objectContaining({ participantIdentity: 'alice', handRaised: false }),
+				origin: MeetEventOrigin.PARTICIPANT
+			});
+		});
+
+		it('tells the local participant when a moderator lowered their hand, and only then', () => {
+			changeHand(alice, raisedHandAttributes(1000));
+			changeHand(alice, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+			expect(notificationService.showMessage).not.toHaveBeenCalled();
+
+			changeHand(alice, raisedHandAttributes(2000));
+			changeHand(alice, loweredHandAttributes(MeetEventOrigin.MODERATOR));
+			expect(notificationService.showMessage).toHaveBeenCalledOnceWith('HAND.LOWERED_BY_MODERATOR');
+		});
+
+		it('offers a holder of participantHandLower to lower a hand that just went up', () => {
+			permissions.set({ participantHandLower: true });
+
+			changeHand(bob, raisedHandAttributes(1000));
+
+			expect(notificationService.showNotification).toHaveBeenCalledOnceWith(
+				jasmine.objectContaining({ kind: 'hand-raised' })
+			);
+			expect(soundService.playHandRaisedSound).toHaveBeenCalledTimes(1);
+			notificationService.showNotification.calls.mostRecent().args[0].action!.run();
+			expect(meetingHand.lower).toHaveBeenCalledOnceWith('bob');
+		});
+
+		it('takes the notice away when that hand goes down', () => {
+			permissions.set({ participantHandLower: true });
+
+			changeHand(bob, raisedHandAttributes(1000));
+			expect(notificationService.dismissNotification).not.toHaveBeenCalled();
+
+			changeHand(bob, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+			expect(notificationService.dismissNotification).toHaveBeenCalledOnceWith(7);
+		});
+
+		it('takes the notice away when that participant leaves', () => {
+			permissions.set({ participantHandLower: true });
+
+			changeHand(bob, raisedHandAttributes(1000));
+			listeners.get(RoomEvent.ParticipantDisconnected)!(bob);
+
+			expect(notificationService.dismissNotification).toHaveBeenCalledOnceWith(7);
+		});
+
+		it('takes the notice away when the participant can no longer lower hands', () => {
+			permissions.set({ participantHandLower: true });
+			TestBed.tick();
+			changeHand(bob, raisedHandAttributes(1000));
+
+			permissions.set({});
+			TestBed.tick();
+
+			expect(notificationService.dismissNotification).toHaveBeenCalledOnceWith(7);
+		});
+
+		it('gathers the hands that go up while the notice is on screen, naming the first one', () => {
+			permissions.set({ participantHandLower: true });
+
+			changeHand(bob, raisedHandAttributes(1000));
+			changeHand(fakeParticipant('carol', false), raisedHandAttributes(2000));
+			changeHand(fakeParticipant('dave', false), raisedHandAttributes(3000));
+
+			expect(notificationService.showNotification).toHaveBeenCalledTimes(1);
+			expect(lastNoticeUpdate()).toEqual({
+				id: 7,
+				message: { key: 'HAND.RAISED_NOTIFICATION_MANY', params: { name: 'bob', count: 2 } },
+				action: undefined
+			});
+			expect(soundService.playHandRaisedSound).toHaveBeenCalledTimes(3);
+		});
+
+		it('drops each hand that goes down from the notice, offering to lower the one left', () => {
+			permissions.set({ participantHandLower: true });
+			const carol = fakeParticipant('carol', false);
+			changeHand(bob, raisedHandAttributes(1000));
+			changeHand(carol, raisedHandAttributes(2000));
+
+			changeHand(bob, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+
+			const update = lastNoticeUpdate();
+			expect(update.message).toEqual({ key: 'HAND.RAISED_NOTIFICATION', params: { name: 'carol' } });
+			update.action!.run();
+			expect(meetingHand.lower).toHaveBeenCalledOnceWith('carol');
+			expect(notificationService.dismissNotification).not.toHaveBeenCalled();
+
+			changeHand(carol, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+			expect(notificationService.dismissNotification).toHaveBeenCalledOnceWith(7);
+		});
+
+		it('starts a notice of its own for a hand that goes up once the previous notice is gone', () => {
+			permissions.set({ participantHandLower: true });
+			changeHand(bob, raisedHandAttributes(1000));
+			notificationsOnScreen.set([]);
+
+			changeHand(fakeParticipant('carol', false), raisedHandAttributes(2000));
+
+			expect(notificationService.updateNotification).not.toHaveBeenCalled();
+			expect(notificationService.showNotification.calls.mostRecent().args[0].message).toEqual({
+				key: 'HAND.RAISED_NOTIFICATION',
+				params: { name: 'carol' }
+			});
+		});
+
+		it('offers nothing to a participant who cannot lower hands, nor for a hand going down', () => {
+			changeHand(bob, raisedHandAttributes(1000));
+			permissions.set({ participantHandLower: true });
+			changeHand(bob, loweredHandAttributes(MeetEventOrigin.PARTICIPANT));
+
+			expect(notificationService.showNotification).not.toHaveBeenCalled();
+			expect(soundService.playHandRaisedSound).not.toHaveBeenCalled();
+		});
+
+		it('ignores attribute changes that are not about the hand', () => {
+			changeHand(bob, { 'meet.other': 'value' });
+
+			expect(handEvents()).toEqual([]);
+		});
+
+		it('replays the raised hands in queue order right after meetingJoined', () => {
+			Object.assign(bob.attributes, raisedHandAttributes(1000));
+			Object.assign(alice.attributes, raisedHandAttributes(2000));
+
+			joinMeeting();
+
+			expect(eventBus.events().map(({ event }) => event)).toEqual([
+				EmbeddedEventName.MEETING_JOINED,
+				EmbeddedEventName.PARTICIPANT_HAND_CHANGED,
+				EmbeddedEventName.PARTICIPANT_HAND_CHANGED
+			]);
+			expect(handEvents()).toEqual([
+				{
+					roomId: 'room1',
+					participant: jasmine.objectContaining({ participantIdentity: 'bob', handRaiseDate: 1000 }),
+					origin: MeetEventOrigin.PARTICIPANT
+				},
+				{
+					roomId: 'room1',
+					participant: jasmine.objectContaining({ participantIdentity: 'alice', handRaiseDate: 2000 }),
+					origin: MeetEventOrigin.PARTICIPANT
+				}
+			]);
+		});
+	});
+
+	describe('remote participant joined', () => {
+		it('tells the host with the join date of the info LiveKit applies after announcing the participant', async () => {
+			const room = new Room();
+			room.state = ConnectionState.Connected;
+			service.setupRoomListeners(room);
+
+			// LiveKit's own handling of a participant the server announces, so the order is LiveKit's.
+			room['handleParticipantUpdates']([
+				{
+					sid: 'PA_bob',
+					identity: 'bob',
+					name: 'Bob',
+					metadata: '',
+					attributes: {},
+					tracks: [],
+					dataTracks: [],
+					joinedAt: 1_620_000_000n,
+					joinedAtMs: 1_620_000_000_123n
+				} as unknown as Parameters<Participant['updateInfo']>[0]
+			]);
 			await Promise.resolve();
 
-			expect(localMedia.setMicrophoneEnabled).not.toHaveBeenCalled();
-			expect(eventBus.events()).toEqual([]);
+			expect(eventBus.events().filter((event) => event.event === EmbeddedEventName.PARTICIPANT_JOINED)).toEqual([
+				{
+					event: EmbeddedEventName.PARTICIPANT_JOINED,
+					payload: {
+						roomId: 'room1',
+						participant: {
+							participantIdentity: 'bob',
+							participantName: 'Bob',
+							externalId: undefined,
+							metadata: undefined,
+							role: MeetRoomMemberRole.SPEAKER,
+							joinDate: 1_620_000_000_123
+						}
+					}
+				}
+			]);
+		});
+	});
+
+	describe('remote participant left', () => {
+		let onParticipantDisconnected: (participant: unknown, reason?: DisconnectReason) => void;
+		const bob = { identity: 'bob', name: 'Bob', metadata: undefined, attributes: {} };
+
+		beforeEach(() => {
+			const room = {
+				metadata: undefined,
+				localParticipant: { identity: 'alice' },
+				on: (event: string, listener: typeof onParticipantDisconnected) => {
+					if (event === RoomEvent.ParticipantDisconnected) onParticipantDisconnected = listener;
+
+					return room;
+				}
+			};
+			service.setupRoomListeners(room as unknown as Room);
+		});
+
+		function leftEvents(): unknown[] {
+			return eventBus
+				.events()
+				.filter((event) => event.event === EmbeddedEventName.PARTICIPANT_LEFT)
+				.map((event) => ('payload' in event ? event.payload : undefined));
+		}
+
+		it('tells the host why the participant left, mapped the way the participantLeft webhook maps it', () => {
+			onParticipantDisconnected(bob, DisconnectReason.PARTICIPANT_REMOVED);
+			onParticipantDisconnected(bob, DisconnectReason.CONNECTION_TIMEOUT);
+
+			expect(leftEvents()).toEqual([
+				{
+					roomId: 'room1',
+					participant: {
+						participantIdentity: 'bob',
+						participantName: 'Bob',
+						externalId: undefined,
+						metadata: undefined,
+						role: MeetRoomMemberRole.SPEAKER,
+						joinDate: 0,
+						leaveReason: LeftEventReason.PARTICIPANT_KICKED
+					}
+				},
+				jasmine.objectContaining({
+					participant: jasmine.objectContaining({ leaveReason: LeftEventReason.NETWORK_DISCONNECT })
+				})
+			]);
+		});
+
+		it('reports an unknown reason when LiveKit gives none', () => {
+			onParticipantDisconnected(bob);
+
+			expect(leftEvents()).toEqual([
+				jasmine.objectContaining({
+					participant: jasmine.objectContaining({ leaveReason: LeftEventReason.UNKNOWN })
+				})
+			]);
 		});
 	});
 
@@ -359,6 +1177,7 @@ describe('MeetingEventHandlerService', () => {
 			let onMetadataChanged: ((metadata: string) => void) | undefined;
 			const room = {
 				metadata,
+				localParticipant: { identity: 'alice' },
 				on: (event: string, handler: (...args: unknown[]) => void) => {
 					if (event === 'roomMetadataChanged') onMetadataChanged = handler as (metadata: string) => void;
 				}

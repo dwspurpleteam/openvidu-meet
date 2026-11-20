@@ -18,9 +18,7 @@ import { SidenavLayoutDirective } from './sidenav-layout.directive';
 			[style.width.px]="containerWidth()"
 			[hasBackdrop]="sidenavLayout.hasBackdrop()"
 		>
-			<mat-sidenav [mode]="sidenavLayout.mode()" [class.big]="sidenavLayout.isSettingsPanelOpened()">
-				panel
-			</mat-sidenav>
+			<mat-sidenav [mode]="sidenavLayout.mode()"> panel </mat-sidenav>
 			<mat-sidenav-content>content</mat-sidenav-content>
 		</mat-sidenav-container>
 	`
@@ -46,6 +44,24 @@ describe('SidenavLayoutDirective', () => {
 		fixture = TestBed.createComponent(HostComponent);
 		host = fixture.componentInstance;
 		fixture.detectChanges();
+	};
+
+	/**
+	 * Opening the drawer moves the content margin, which queues a settle pass that stops whatever
+	 * transition is being followed when it runs. Waiting for it keeps it from cutting the next one short.
+	 */
+	const openChatAndSettle = async () => {
+		panelService.togglePanel(PanelType.CHAT);
+		fixture.detectChanges();
+		await waitUntilQuiet(layoutUpdateSpy, 500);
+	};
+
+	/**
+	 * Without CSS transitions, as in this suite, Material reports the start and the end of an
+	 * animation together. Reporting only the start stands for a transition still running.
+	 */
+	const startDrawerAnimation = () => {
+		host.sidenav()._animationStarted.next(undefined);
 	};
 
 	beforeEach(() => {
@@ -91,20 +107,6 @@ describe('SidenavLayoutDirective', () => {
 		createFixture();
 
 		expect(host.sidenav().opened).toBeTrue();
-	});
-
-	it('reports the settings panel, which is the one that widens the sidenav', () => {
-		createFixture();
-
-		expect(host.sidenavLayout().isSettingsPanelOpened()).toBeFalse();
-
-		panelService.togglePanel(PanelType.SETTINGS);
-		fixture.detectChanges();
-		expect(host.sidenavLayout().isSettingsPanelOpened()).toBeTrue();
-
-		panelService.togglePanel(PanelType.CHAT);
-		fixture.detectChanges();
-		expect(host.sidenavLayout().isSettingsPanelOpened()).toBeFalse();
 	});
 
 	it('gives the container the full height when no toolbar template is registered', async () => {
@@ -163,20 +165,13 @@ describe('SidenavLayoutDirective', () => {
 		expect(layoutUpdateSpy).toHaveBeenCalledTimes(1);
 	});
 
-	// Switching to or from the settings panel is the width change with no event to follow: Material
-	// re-measures it only while `autosize` is on, so the directive recomputes on a timer until its
-	// cap rather than waiting for a report that never comes.
-	it('recomputes the layout repeatedly while the sidenav changes width, then leaves it alone', async () => {
+	it('recomputes the layout repeatedly while the sidenav animates, then leaves it alone', async () => {
 		withToolbarTemplate();
 		createFixture();
-		panelService.togglePanel(PanelType.CHAT);
-		fixture.detectChanges();
-		// The drawer reports it opened one turn later, which stops the passes of that opening.
-		await delay(100);
+		await openChatAndSettle();
 		layoutUpdateSpy.calls.reset();
 
-		panelService.togglePanel(PanelType.SETTINGS);
-		fixture.detectChanges();
+		startDrawerAnimation();
 
 		await waitFor(() => layoutUpdateSpy.calls.count() >= 4);
 
@@ -211,11 +206,9 @@ describe('SidenavLayoutDirective', () => {
 	it('stops the passes that were still running when it was destroyed', async () => {
 		withToolbarTemplate();
 		createFixture();
-		panelService.togglePanel(PanelType.CHAT);
-		fixture.detectChanges();
-		await delay(100);
-		panelService.togglePanel(PanelType.SETTINGS);
-		fixture.detectChanges();
+		await openChatAndSettle();
+		layoutUpdateSpy.calls.reset();
+		startDrawerAnimation();
 		await waitFor(() => layoutUpdateSpy.calls.count() >= 4);
 
 		fixture.destroy();
@@ -228,10 +221,9 @@ describe('SidenavLayoutDirective', () => {
 	it('stops updating the layout once destroyed', async () => {
 		createFixture();
 
-		// Switching to/from SETTINGS starts the interval that follows the sidenav animation.
-		panelService.togglePanel(PanelType.SETTINGS);
-		fixture.detectChanges();
 		panelService.togglePanel(PanelType.CHAT);
+		fixture.detectChanges();
+		panelService.closePanel();
 		fixture.detectChanges();
 		await waitFor(() => layoutUpdateSpy.calls.any());
 
@@ -256,6 +248,26 @@ async function waitFor(condition: () => boolean, timeoutMs = 2000): Promise<void
 		}
 
 		await delay(20);
+	}
+}
+
+/** Resolves once the spy has gone `quietMs` without a call. */
+async function waitUntilQuiet(spy: jasmine.Spy, quietMs: number, timeoutMs = 3000): Promise<void> {
+	const start = performance.now();
+	let count = spy.calls.count();
+	let lastCallAt = start;
+
+	while (performance.now() - lastCallAt < quietMs) {
+		if (performance.now() - start > timeoutMs) {
+			throw new Error('Timed out waiting for the spy to go quiet');
+		}
+
+		await delay(20);
+
+		if (spy.calls.count() !== count) {
+			count = spy.calls.count();
+			lastCallAt = performance.now();
+		}
 	}
 }
 

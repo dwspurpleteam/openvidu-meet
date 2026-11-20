@@ -15,6 +15,7 @@ import { ConsoleDock } from './components/console-dock/console-dock';
 import { SetupPanel } from './components/setup-panel/setup-panel';
 import { Integration } from './models';
 import type { OpenViduMeetElement } from './openvidu-meet-element';
+import { ConsolePreferencesService } from './services/console-preferences';
 import { EventLogService } from './services/event-log';
 import { IframeHostService } from './services/iframe-host';
 import { MeetCommandsService } from './services/meet-commands';
@@ -43,6 +44,7 @@ export class App {
 	protected readonly log = inject(EventLogService);
 	protected readonly config = inject(TestappConfigStore);
 	protected readonly theme = inject(ThemeService);
+	protected readonly consolePreferences = inject(ConsolePreferencesService);
 	private readonly commands = inject(MeetCommandsService);
 	private readonly roster = inject(ParticipantRosterService);
 	private readonly iframeHost = inject(IframeHostService);
@@ -174,6 +176,8 @@ export class App {
 		// iframe transport carries the same three states as the webcomponent one.
 		set(EmbeddedAttribute.INITIAL_AUDIO_ACTIVE, this.config.initialAudioActive());
 		set(EmbeddedAttribute.INITIAL_VIDEO_ACTIVE, this.config.initialVideoActive());
+		set(EmbeddedAttribute.LANGUAGE, this.config.language());
+		set(EmbeddedAttribute.SHOW_LANGUAGE_SELECTOR, this.config.showLanguageSelector());
 
 		if (this.config.showOnlyRecordings()) {
 			url.searchParams.set(EmbeddedAttribute.SHOW_ONLY_RECORDINGS, 'true');

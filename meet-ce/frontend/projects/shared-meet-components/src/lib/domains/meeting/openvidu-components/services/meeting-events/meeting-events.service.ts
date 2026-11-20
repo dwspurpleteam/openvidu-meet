@@ -3,8 +3,10 @@ import {
 	MeetingChatSignalPayload,
 	MeetRecordingStatus,
 	MeetRecordingUpdatedPayload,
+	MeetSignalPayload,
 	MeetSignalType
 } from '@openvidu-meet/typings';
+import { Subject } from 'rxjs';
 import { DataTopic } from '../../models/data-topic.model';
 import { ParticipantLeftEvent, ParticipantLeftReason } from '../../models/participant.model';
 import {
@@ -39,6 +41,15 @@ export interface MeetingEventCallbacks {
 	onParticipantLeft: (event: ParticipantLeftEvent) => void;
 }
 
+/** A signal the Meet server sent this room over the data channel. */
+export interface MeetSignal {
+	topic: MeetSignalType;
+	payload: MeetSignalPayload;
+}
+
+const isMeetSignalType = (topic: string | undefined): topic is MeetSignalType =>
+	Object.values(MeetSignalType).includes(topic as MeetSignalType);
+
 @Service()
 export class MeetingEventsService {
 	private readonly dialogService = inject(DialogService);
@@ -54,6 +65,12 @@ export class MeetingEventsService {
 	private readonly log = this.loggerSrv.get('MeetingEventsService');
 	private readonly _activeSpeakers = signal<Participant[]>([]);
 	readonly activeSpeakers = this._activeSpeakers.asReadonly();
+	private readonly meetSignals = new Subject<MeetSignal>();
+	/**
+	 * Every signal the Meet server sends this room, in arrival order, from the moment the room is
+	 * bound: before it connects, so nothing the server sends on joining is missed.
+	 */
+	readonly meetSignals$ = this.meetSignals.asObservable();
 	/**
 	 * True while LiveKit is reconnecting. A full reconnect unwinds every remote participant with
 	 * real ParticipantDisconnected events and re-adds them after Reconnected, so the auto-dock in
@@ -75,6 +92,7 @@ export class MeetingEventsService {
 		this.subscribeToLocalTrackPublished(room);
 		this.subscribeToParticipantDisconnected(room);
 		this.subscribeToParticipantNameChanged(room);
+		this.subscribeToParticipantAttributesChanged(room);
 		this.subscribeToDataMessage(room);
 		this.subscribeToReconnection(room, callbacks);
 		this.subscribeToConnectionQualityChanged(room);
@@ -192,6 +210,19 @@ export class MeetingEventsService {
 	}
 
 	/**
+	 * The Meet server writes attributes (the raised hand) onto the LiveKit participant object, so the
+	 * model is bumped for the reactive getters reading them to repaint.
+	 */
+	private subscribeToParticipantAttributesChanged(room: Room) {
+		room.on(
+			RoomEvent.ParticipantAttributesChanged,
+			(_changedAttributes: Record<string, string>, participant: Participant) => {
+				this.refreshParticipantState(participant);
+			}
+		);
+	}
+
+	/**
 	 * Re-syncs the model wrapping the given LiveKit participant after an in-place mutation
 	 * (mute state, name, …): the local model is bumped, a remote one is bumped through
 	 * `addRemoteParticipant` (which also registers it if it was unknown).
@@ -251,7 +282,7 @@ export class MeetingEventsService {
 					// Meet signals carry server authority (recording state), so only the server may
 					// send them: a packet relayed from a participant arrives with that participant,
 					// one sent by the server does not.
-					if (participant && Object.values(MeetSignalType).includes(topic as MeetSignalType)) {
+					if (participant && isMeetSignalType(topic)) {
 						this.log.w(`Discarding '${topic}' data relayed from a participant`, participant.identity);
 						return;
 					}
@@ -287,23 +318,19 @@ export class MeetingEventsService {
 	}
 
 	private handleDataEvent(topic: string | undefined, event: unknown, participantName: string) {
-		if (!topic) return;
-
-		switch (topic) {
-			case DataTopic.CHAT: {
-				const { message } = event as MeetingChatSignalPayload;
-				this.chatService.addRemoteMessage(message, participantName);
-				break;
-			}
-
-			case MeetSignalType.MEET_RECORDING_UPDATED: {
-				this.handleRecordingUpdated(event as MeetRecordingUpdatedPayload);
-				break;
-			}
-
-			default:
-				break;
+		if (topic === DataTopic.CHAT) {
+			const { message } = event as MeetingChatSignalPayload;
+			this.chatService.addRemoteMessage(message, participantName);
+			return;
 		}
+
+		if (!isMeetSignalType(topic)) return;
+
+		if (topic === MeetSignalType.MEET_RECORDING_UPDATED) {
+			this.handleRecordingUpdated(event as MeetRecordingUpdatedPayload);
+		}
+
+		this.meetSignals.next({ topic, payload: event as MeetSignalPayload });
 	}
 
 	private handleRecordingUpdated(event: MeetRecordingUpdatedPayload): void {
@@ -366,6 +393,7 @@ export class MeetingEventsService {
 		room.on(RoomEvent.Disconnected, async (reason: DisconnectReason | undefined) => {
 			this.reconnectInProgress = false;
 			this._activeSpeakers.set([]);
+			this.recordingService.setRecordingStopped();
 			this.dialogService.closeBlockingDialog();
 			const participantLeftEvent: ParticipantLeftEvent = {
 				roomName: this.meetingLiveKitService.getRoomName(),

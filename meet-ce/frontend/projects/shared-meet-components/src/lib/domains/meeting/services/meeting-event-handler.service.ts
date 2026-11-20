@@ -1,18 +1,23 @@
 import { Injectable, effect, inject, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
 	EmbeddedEventName,
+	EmbeddedEventPayloadFor,
+	handLoweredByOf,
+	handRaiseDateOf,
 	LeftEventReason,
 	MeetEventOrigin,
+	MeetParticipantAttribute,
 	MeetParticipantMediaMutedPayload,
 	MeetParticipantPermissionsUpdatedPayload,
-	MeetParticipantRoleUpdatedPayload,
 	MeetRecordingStatus,
 	MeetRecordingUpdatedPayload,
+	MeetRoomMemberRole,
 	MeetRoomMemberTokenOptions,
-	MeetRoomMemberUIBadge,
 	MeetSignalType
 } from '@openvidu-meet/typings';
-import { NavigationErrorReason } from '../../../shared/models/navigation.model';
+import type { EmbeddedParticipantHandChangedEvent } from '@openvidu-meet/typings';
+import type { NotificationOptions } from '../../../shared/models/notification.model';
 import { TranslateService } from '../../../shared/services/i18n/translate.service';
 import { NavigationService } from '../../../shared/services/navigation.service';
 import { NotificationService } from '../../../shared/services/notification.service';
@@ -23,8 +28,9 @@ import { RecordingService } from '../../recordings/services/recording.service';
 import { RoomMemberContextService } from '../../room-members/services/room-member-context.service';
 import { RoomFeatureService } from '../../rooms/services/room-feature.service';
 import type {
-	DataPacket_Kind,
+	DisconnectReason,
 	LocalParticipant,
+	Participant,
 	ParticipantLeftEvent,
 	ParticipantModel,
 	RecordingStartRequestedEvent,
@@ -39,13 +45,48 @@ import {
 	ParticipantLeftReason,
 	RoomEvent,
 	Track,
-	parseParticipantMetadata
+	parseParticipantMetadata,
+	raisedHandQueue
 } from '../openvidu-components';
-import { toEmbeddedParticipantPayload } from '../utils/embedded-participant.utils';
+import {
+	MeetingEventsService,
+	MeetSignal
+} from '../openvidu-components/services/meeting-events/meeting-events.service';
+import {
+	toEmbeddedDepartedParticipant,
+	toEmbeddedParticipantInfo,
+	toEmbeddedParticipantPayload,
+	toParticipantRole
+} from '../utils/embedded-participant.utils';
 import { toMediaStatusChangedEvent } from '../utils/media-status-event.utils';
 import { hasReachedMeetingEnd, parseMeetingEndDate, parseMeetingStartDate } from '../utils/room-metadata.utils';
 import { MeetingContextService } from './meeting-context.service';
+import { MeetingHandService } from './meeting-hand.service';
 import { MeetingStateService } from './meeting-state.service';
+
+const HAND_NOTIFICATION_DURATION_MS = 5000;
+
+/** A raised hand the notice on screen announces. */
+interface AnnouncedHand {
+	identity: string;
+	name: string;
+}
+
+/** The raised-hand notice, and the hands it announces in the order they went up. */
+interface HandNotice {
+	id: number;
+	hands: AnnouncedHand[];
+}
+
+const RECORDING_STATUS_ORDER: Record<MeetRecordingStatus, number> = {
+	[MeetRecordingStatus.STARTING]: 0,
+	[MeetRecordingStatus.ACTIVE]: 1,
+	[MeetRecordingStatus.ENDING]: 2,
+	[MeetRecordingStatus.COMPLETE]: 3,
+	[MeetRecordingStatus.FAILED]: 3,
+	[MeetRecordingStatus.ABORTED]: 3,
+	[MeetRecordingStatus.LIMIT_REACHED]: 3
+};
 
 /**
  * Service that handles all LiveKit/OpenVidu room events.
@@ -69,6 +110,25 @@ export class MeetingEventHandlerService {
 	protected localMedia = inject(LocalMediaService);
 	protected screenShare = inject(ScreenShareService);
 	protected meetingEndingSoon = inject(MeetingEndingSoonService);
+	protected meetingHand = inject(MeetingHandService);
+
+	/**
+	 * Role changes and permission signals each replace the room member token, so they are applied one
+	 * at a time, in the order they arrived: otherwise a slower refresh could install an older role.
+	 */
+	private tokenUpdates = Promise.resolve();
+
+	constructor() {
+		// The server signals flow from the moment the room is bound, before it connects, so what the
+		// server sends a participant on joining (the recording in progress) is not missed.
+		inject(MeetingEventsService)
+			.meetSignals$.pipe(takeUntilDestroyed())
+			.subscribe((meetSignal) =>
+				this.handleMeetSignal(meetSignal).catch((error) =>
+					console.warn(`Failed to handle the '${meetSignal.topic}' signal`, error)
+				)
+			);
+	}
 
 	// ============================================
 	// PUBLIC METHODS - Room Event Handlers
@@ -82,62 +142,13 @@ export class MeetingEventHandlerService {
 	 */
 	setupRoomListeners(room: Room): void {
 		room.on(
-			RoomEvent.DataReceived,
-			async (payload: Uint8Array, participant?: RemoteParticipant, _kind?: DataPacket_Kind, topic?: string) => {
-				// Only process topics that this handler is responsible for
-				const relevantTopics: string[] = [
-					MeetSignalType.MEET_RECORDING_UPDATED,
-					MeetSignalType.MEET_PARTICIPANT_ROLE_UPDATED,
-					MeetSignalType.MEET_PARTICIPANT_PERMISSIONS_UPDATED,
-					MeetSignalType.MEET_PARTICIPANT_MEDIA_MUTED
-				];
-
-				if (!topic || !relevantTopics.includes(topic)) {
-					return;
-				}
-
-				// These signals carry moderation authority, so only the server may send them: a packet
-				// relayed from a participant arrives with that participant, one sent by the server does not.
-				if (participant) {
-					return;
-				}
-
-				try {
-					const event = JSON.parse(new TextDecoder().decode(payload));
-
-					switch (topic) {
-						case MeetSignalType.MEET_RECORDING_UPDATED:
-							this.handleRecordingUpdated(event as MeetRecordingUpdatedPayload);
-							break;
-
-						case MeetSignalType.MEET_PARTICIPANT_ROLE_UPDATED: {
-							const roleUpdateEvent = event as MeetParticipantRoleUpdatedPayload;
-							await this.handleParticipantRoleUpdated(roleUpdateEvent);
-							break;
-						}
-
-						case MeetSignalType.MEET_PARTICIPANT_PERMISSIONS_UPDATED: {
-							const permissionsUpdateEvent = event as MeetParticipantPermissionsUpdatedPayload;
-							await this.handleParticipantPermissionsUpdated(permissionsUpdateEvent);
-							break;
-						}
-
-						case MeetSignalType.MEET_PARTICIPANT_MEDIA_MUTED: {
-							const mediaMutedEvent = event as MeetParticipantMediaMutedPayload;
-							await this.handleParticipantMediaMuted(mediaMutedEvent);
-							break;
-						}
-					}
-				} catch (error) {
-					console.warn(`Failed to parse data message for topic: ${topic}`, error);
-				}
-			}
-		);
-
-		room.on(
 			RoomEvent.ParticipantMetadataChanged,
 			(_prevMetadata: string | undefined, participant: LocalParticipant | RemoteParticipant) => {
 				this.handleParticipantMetadataChanged(participant.identity, participant.metadata);
+
+				if (participant === room.localParticipant) {
+					this.syncLocalRole(room.localParticipant);
+				}
 			}
 		);
 
@@ -147,13 +158,22 @@ export class MeetingEventHandlerService {
 			this.onRemoteParticipantConnected(participant);
 		});
 
-		room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-			this.onRemoteParticipantDisconnected(participant);
+		room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant, reason?: DisconnectReason) => {
+			this.onRemoteParticipantDisconnected(participant, reason);
 		});
 
-		// LiveKit seeds the room metadata silently when the join response lands and only emits the
-		// changes that follow, so the start and the deadline are read here as well as listened for.
+		room.on(
+			RoomEvent.ParticipantAttributesChanged,
+			(changedAttributes: Record<string, string>, participant: Participant) => {
+				this.handleParticipantAttributesChanged(changedAttributes, participant);
+			}
+		);
+
+		// What the join response brought and what changed while connecting landed before these listeners
+		// existed (LiveKit even seeds the room metadata silently), so the meeting's start and deadline and
+		// the local participant's role are read here as well as listened for.
 		this.handleRoomMetadataChanged(room.metadata);
+		this.syncLocalRole(room.localParticipant);
 		room.on(RoomEvent.RoomMetadataChanged, (metadata: string) => this.handleRoomMetadataChanged(metadata));
 	}
 
@@ -176,6 +196,22 @@ export class MeetingEventHandlerService {
 
 	// What the host has been told about each local device's status in the current entry.
 	private mediaStatusLedger: Partial<Record<EmbeddedEventName, boolean>> = {};
+	// The furthest status each recording has reached in the current entry.
+	private recordingStatusLedger = new Map<string, MeetRecordingStatus>();
+	// A hand that goes up while the notice is on screen joins it; one that goes down or leaves drops out.
+	private handNotice?: HandNotice;
+
+	// The notice offers to lower the hand, so it goes when the permission to do that does.
+	private readonly handNoticePermissionEffect = effect(() => {
+		if (!this.roomMemberContextService.hasPermission('participantHandLower')) {
+			untracked(() => this.dismissHandNotice());
+		}
+	});
+	private meetingJoinedNotified = false;
+	// Whether the local participant's metadata said they were promoted to moderator, in the current entry.
+	private localPromotedModerator = false;
+	// The notice of the role now in effect: a newer role change replaces it rather than stacking on it.
+	private roleNoticeId?: number;
 
 	/**
 	 * Notifies the host of the local participant's media status (embedded modes only) from the state
@@ -283,28 +319,32 @@ export class MeetingEventHandlerService {
 	/**
 	 * Forwards a remote participant's join to the host as a `participantJoined` event (embedded
 	 * modes only). Only live transitions are notified: participants already in the meeting when
-	 * the local one joins are not replayed.
+	 * the local one joins are not replayed. LiveKit announces a participant before it applies the
+	 * participant's info, in the same task, so the event is built a microtask later.
 	 */
 	protected onRemoteParticipantConnected(participant: RemoteParticipant): void {
 		if (!this.runtimeConfigService.isEmbeddedMode()) {
 			return;
 		}
 
-		this.eventBus.emit({
-			event: EmbeddedEventName.PARTICIPANT_JOINED,
-			payload: {
-				roomId: this.meetingContext.roomId() ?? '',
-				participant: toEmbeddedParticipantPayload(participant)
-			}
-		});
+		queueMicrotask(() =>
+			this.eventBus.emit({
+				event: EmbeddedEventName.PARTICIPANT_JOINED,
+				payload: {
+					roomId: this.meetingContext.roomId() ?? '',
+					participant: toEmbeddedParticipantPayload(participant)
+				}
+			})
+		);
 	}
 
 	/**
-	 * Forwards a remote participant's departure to the host as a `participantLeft` event (embedded
-	 * modes only). The departure reason is not part of the payload: it is only known server-side
-	 * and travels on the `participantLeft` webhook.
+	 * Drops a remote participant who leaves from the raised-hand notice, and forwards the departure
+	 * to the host as a `participantLeft` event (embedded modes only), with the reason LiveKit gives.
 	 */
-	protected onRemoteParticipantDisconnected(participant: RemoteParticipant): void {
+	protected onRemoteParticipantDisconnected(participant: RemoteParticipant, reason?: DisconnectReason): void {
+		this.withdrawHand(participant.identity);
+
 		if (!this.runtimeConfigService.isEmbeddedMode()) {
 			return;
 		}
@@ -313,15 +353,16 @@ export class MeetingEventHandlerService {
 			event: EmbeddedEventName.PARTICIPANT_LEFT,
 			payload: {
 				roomId: this.meetingContext.roomId() ?? '',
-				participant: toEmbeddedParticipantPayload(participant)
+				participant: toEmbeddedDepartedParticipant(participant, reason)
 			}
 		});
 	}
 
 	/**
 	 * Forwards the participant-connected event to the host as a `meetingJoined` lifecycle event
-	 * (embedded modes only). The bus only ever queues the canonical name; each shell is
-	 * responsible for also dispatching the deprecated `joined` alias alongside it.
+	 * (embedded modes only), followed by the status of every recording the meeting already has. The
+	 * bus only ever queues the canonical name; each shell is responsible for also dispatching the
+	 * deprecated `joined` alias alongside it.
 	 */
 	onParticipantConnected = (event: ParticipantModel): void => {
 		if (!this.runtimeConfigService.isEmbeddedMode()) {
@@ -335,7 +376,139 @@ export class MeetingEventHandlerService {
 				participantIdentity: event.identity
 			}
 		});
+		this.meetingJoinedNotified = true;
+
+		for (const [recordingId, status] of this.recordingStatusLedger) {
+			this.eventBus.emit({ event: EmbeddedEventName.RECORDING_STATUS_CHANGED, payload: { recordingId, status } });
+		}
+
+		for (const participant of this.raisedHandQueue()) {
+			this.eventBus.emit(this.participantHandChangedEvent(participant, MeetEventOrigin.PARTICIPANT));
+		}
 	};
+
+	/**
+	 * Reacts to a hand going up or down. The attribute the server wrote says whether the hand is
+	 * raised and who lowered it, so a moderator lower reaches the affected participant, the holders
+	 * of `participantHandLower` and the host without any further exchange.
+	 */
+	private handleParticipantAttributesChanged(
+		changedAttributes: Record<string, string>,
+		participant: Participant
+	): void {
+		if (!(MeetParticipantAttribute.HAND_RAISE_DATE in changedAttributes)) return;
+
+		const raised = handRaiseDateOf(participant.attributes) !== undefined;
+		const origin = raised ? MeetEventOrigin.PARTICIPANT : handLoweredByOf(participant.attributes);
+
+		if (participant.isLocal) {
+			if (origin === MeetEventOrigin.MODERATOR) {
+				this.notificationService.showMessage(this.translateService.translate('HAND.LOWERED_BY_MODERATOR'));
+			}
+		} else if (!raised) {
+			this.withdrawHand(participant.identity);
+		} else if (this.roomMemberContextService.hasPermission('participantHandLower')) {
+			this.announceRaisedHand(participant);
+		}
+
+		if (!this.runtimeConfigService.isEmbeddedMode()) return;
+
+		this.eventBus.emit(this.participantHandChangedEvent(participant, origin));
+	}
+
+	private announceRaisedHand(participant: Participant): void {
+		this.soundService.playHandRaisedSound();
+		const earlier = this.shownHandNotice()?.hands.filter(({ identity }) => identity !== participant.identity);
+		const name = participant.name ?? participant.identity;
+		this.showHandNotice([...(earlier ?? []), { identity: participant.identity, name }]);
+	}
+
+	private withdrawHand(participantIdentity: string): void {
+		const hands = this.shownHandNotice()?.hands ?? [];
+
+		if (!hands.some(({ identity }) => identity === participantIdentity)) return;
+
+		this.showHandNotice(hands.filter(({ identity }) => identity !== participantIdentity));
+	}
+
+	/** The raised-hand notice while it is on screen: it times out, and the participant can close it. */
+	private shownHandNotice(): HandNotice | undefined {
+		const notice = this.handNotice;
+		return notice && this.notificationService.notifications().some(({ id }) => id === notice.id)
+			? notice
+			: undefined;
+	}
+
+	/** Shows the notice for these hands, rewriting the one on screen, or takes it away for none. */
+	private showHandNotice(hands: AnnouncedHand[]): void {
+		if (hands.length === 0) {
+			this.dismissHandNotice();
+			return;
+		}
+
+		const shown = this.shownHandNotice();
+		const options = this.handNoticeOptions(hands);
+
+		if (shown) {
+			this.notificationService.updateNotification(shown.id, options);
+		}
+
+		this.handNotice = { id: shown?.id ?? this.notificationService.showNotification(options), hands };
+	}
+
+	/** One hand is named, with the offer to lower it; several are the first one's name and how many more. */
+	private handNoticeOptions([first, ...others]: AnnouncedHand[]): NotificationOptions {
+		const notice = { kind: 'hand-raised', icon: 'front_hand', durationMs: HAND_NOTIFICATION_DURATION_MS };
+
+		if (others.length > 0) {
+			const params = { name: first.name, count: others.length };
+			return { ...notice, message: { key: 'HAND.RAISED_NOTIFICATION_MANY', params } };
+		}
+
+		return {
+			...notice,
+			message: { key: 'HAND.RAISED_NOTIFICATION', params: { name: first.name } },
+			action: {
+				label: { key: 'HAND.LOWER_PARTICIPANT' },
+				run: () =>
+					void this.meetingHand
+						.lower(first.identity)
+						.catch((error) => console.warn('The hand could not be lowered', error))
+			}
+		};
+	}
+
+	private dismissHandNotice(): void {
+		if (!this.handNotice) return;
+
+		this.notificationService.dismissNotification(this.handNotice.id);
+		this.handNotice = undefined;
+	}
+
+	/** Every raised hand in the meeting in queue order, read straight off the LiveKit participants. */
+	private raisedHandQueue(): Participant[] {
+		const room = this.meetingState.lkRoom();
+
+		if (!room) return [];
+
+		return raisedHandQueue([room.localParticipant, ...room.remoteParticipants.values()], (participant) =>
+			handRaiseDateOf(participant.attributes)
+		);
+	}
+
+	private participantHandChangedEvent(
+		participant: Participant,
+		origin: EmbeddedParticipantHandChangedEvent['payload']['origin']
+	): EmbeddedParticipantHandChangedEvent {
+		return {
+			event: EmbeddedEventName.PARTICIPANT_HAND_CHANGED,
+			payload: {
+				roomId: this.meetingContext.roomId() ?? '',
+				participant: toEmbeddedParticipantInfo(participant),
+				origin
+			}
+		};
+	}
 
 	/**
 	 * Maps the technical leave reason to a {@link LeftEventReason}, clears context, emits the
@@ -362,6 +535,10 @@ export class MeetingEventHandlerService {
 		this.meetingState.clear();
 		// Per entry: the next one starts up again, against its own initial state.
 		this.mediaStatusLedger = {};
+		this.recordingStatusLedger.clear();
+		this.handNotice = undefined;
+		this.meetingJoinedNotified = false;
+		this.localPromotedModerator = false;
 
 		// Notify the host that the local participant left (embedded modes only; the bus is drained there).
 		if (this.runtimeConfigService.isEmbeddedMode()) {
@@ -408,30 +585,75 @@ export class MeetingEventHandlerService {
 	// PRIVATE METHODS - Event Handlers
 	// ============================================
 
-	/**
-	 * Handles role updated event for the local participant by refreshing the room member token to get updated permissions.
-	 * Also shows a notification to the user about their new role.
-	 *
-	 * @param event Participant role updated event payload
-	 */
-	private async handleParticipantRoleUpdated(event: MeetParticipantRoleUpdatedPayload): Promise<void> {
-		const { roomId, participantIdentity, newBadge } = event;
-		const local = this.meetingState.localParticipant();
+	private async handleMeetSignal({ topic, payload }: MeetSignal): Promise<void> {
+		switch (topic) {
+			case MeetSignalType.MEET_RECORDING_UPDATED:
+				this.handleRecordingUpdated(payload as MeetRecordingUpdatedPayload);
+				break;
 
-		if (!roomId || !local || local.identity !== participantIdentity) {
+			case MeetSignalType.MEET_PARTICIPANT_PERMISSIONS_UPDATED:
+				await this.inArrivalOrder(() =>
+					this.handleParticipantPermissionsUpdated(payload as MeetParticipantPermissionsUpdatedPayload)
+				);
+				break;
+
+			case MeetSignalType.MEET_PARTICIPANT_MEDIA_MUTED:
+				await this.handleParticipantMediaMuted(payload as MeetParticipantMediaMutedPayload);
+				break;
+		}
+	}
+
+	private syncLocalRole(participant: LocalParticipant): void {
+		this.inArrivalOrder(() => this.handleLocalParticipantRole(participant)).catch((error) =>
+			console.warn('Failed to apply the local participant role', error)
+		);
+	}
+
+	/**
+	 * Applies a promotion or demotion the local participant's metadata carries: refreshes the room
+	 * member token, which holds the permissions, then notifies the participant and, in embedded modes,
+	 * the host about the role now in effect.
+	 */
+	private async handleLocalParticipantRole(participant: LocalParticipant): Promise<void> {
+		const metadata = parseParticipantMetadata(participant.metadata);
+		const roomId = this.meetingContext.roomId();
+
+		if (!metadata || !roomId) {
 			return;
 		}
 
-		try {
-			// Refresh room member token to get updated permissions based on new role
-			await this.roomMemberContextService.refreshToken(roomId);
+		const promoted = Boolean(metadata.isPromotedModerator);
+		const role = toParticipantRole(metadata.badge);
+		const wasPromoted = this.localPromotedModerator;
+		this.localPromotedModerator = promoted;
 
-			const isPromotedModerator = newBadge === MeetRoomMemberUIBadge.MODERATOR;
-			this.showParticipantRoleUpdatedNotification(isPromotedModerator);
-		} catch (error) {
-			console.error('Error refreshing room member token after role update:', error);
-			await this.navigationService.redirectToErrorPage(NavigationErrorReason.ROOM_ACCESS_REVOKED, true);
+		// A promotion that gives way to a base role that is moderator itself leaves the role as it was.
+		if (promoted === wasPromoted || (!promoted && role === MeetRoomMemberRole.MODERATOR)) {
+			return;
 		}
+
+		const refreshed = await this.roomMemberContextService.updateTokenInMeeting(() =>
+			this.roomMemberContextService.refreshToken(roomId)
+		);
+
+		if (!refreshed) {
+			return;
+		}
+
+		this.showParticipantRoleUpdatedNotification(promoted);
+
+		if (this.runtimeConfigService.isEmbeddedMode()) {
+			this.eventBus.emit({
+				event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED,
+				payload: { roomId, participant: toEmbeddedParticipantInfo(participant) }
+			});
+		}
+	}
+
+	private inArrivalOrder(tokenUpdate: () => Promise<void>): Promise<void> {
+		const applied = this.tokenUpdates.then(tokenUpdate);
+		this.tokenUpdates = applied.catch(() => undefined);
+		return applied;
 	}
 
 	private handleRecordingUpdated(event: MeetRecordingUpdatedPayload): void {
@@ -441,8 +663,34 @@ export class MeetingEventHandlerService {
 			return;
 		}
 
-		if (event.recording.status === MeetRecordingStatus.COMPLETE) {
+		const { recordingId, status } = event.recording;
+
+		if (status === MeetRecordingStatus.COMPLETE) {
 			this.meetingContext.setHasRecordings(true);
+		}
+
+		this.notifyRecordingStatus({ recordingId, status });
+	}
+
+	/**
+	 * Notifies the host of the recording's status (embedded modes only) only when it moves that
+	 * recording forward: the server repeats the current status to a participant who joins
+	 * mid-recording or reconnects, and the egress webhooks it relays can arrive late. That repeat
+	 * reaches a joining participant before `meetingJoined` does, so until then the status is only
+	 * recorded, for {@link onParticipantConnected} to report.
+	 */
+	private notifyRecordingStatus(payload: EmbeddedEventPayloadFor<EmbeddedEventName.RECORDING_STATUS_CHANGED>): void {
+		if (!this.runtimeConfigService.isEmbeddedMode()) return;
+
+		const { recordingId, status } = payload;
+		const known = this.recordingStatusLedger.get(recordingId);
+
+		if (known !== undefined && RECORDING_STATUS_ORDER[status] <= RECORDING_STATUS_ORDER[known]) return;
+
+		this.recordingStatusLedger.set(recordingId, status);
+
+		if (this.meetingJoinedNotified) {
+			this.eventBus.emit({ event: EmbeddedEventName.RECORDING_STATUS_CHANGED, payload });
 		}
 	}
 
@@ -460,18 +708,16 @@ export class MeetingEventHandlerService {
 			return;
 		}
 
-		try {
-			const roomSecret = this.meetingContext.roomSecret();
-			const tokenOptions: MeetRoomMemberTokenOptions = {
-				secret: roomSecret,
-				joinMeeting: true
-			};
-			await this.roomMemberContextService.generateToken(roomId, tokenOptions);
+		const tokenOptions: MeetRoomMemberTokenOptions = {
+			secret: this.meetingContext.roomSecret(),
+			joinMeeting: true
+		};
+		const regenerated = await this.roomMemberContextService.updateTokenInMeeting(() =>
+			this.roomMemberContextService.generateToken(roomId, tokenOptions)
+		);
 
-			this.notificationService.showMessage('Your permissions have been updated');
-		} catch (error) {
-			console.error('Error regenerating room member token after permissions update:', error);
-			await this.navigationService.redirectToErrorPage(NavigationErrorReason.ROOM_ACCESS_REVOKED, true);
+		if (regenerated) {
+			this.notificationService.showMessage(this.translateService.translate('MODERATION.PERMISSIONS_UPDATED'));
 		}
 	}
 
@@ -507,10 +753,15 @@ export class MeetingEventHandlerService {
 	}
 
 	private showParticipantRoleUpdatedNotification(isPromotedModerator: boolean): void {
-		const message = isPromotedModerator
-			? 'You have been promoted to moderator'
-			: 'Your moderator role has been removed';
-		this.notificationService.showMessage(message);
+		const messageKey = isPromotedModerator
+			? 'MODERATION.PROMOTED_TO_MODERATOR'
+			: 'MODERATION.MODERATOR_ROLE_REMOVED';
+
+		if (this.roleNoticeId !== undefined) {
+			this.notificationService.dismissNotification(this.roleNoticeId);
+		}
+
+		this.roleNoticeId = this.notificationService.showMessage(this.translateService.translate(messageKey));
 
 		if (isPromotedModerator) {
 			this.soundService.playParticipantRoleUpgradedSound();

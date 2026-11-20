@@ -17,8 +17,7 @@ export enum EmbeddedAttribute {
 	 */
 	PARTICIPANT_NAME = 'participant-name',
 	/**
-	 * Application-defined identifier for the local participant, so the embedding application can
-	 * correlate the participant with one of its own users.
+	 * Identifier of the local participant in your own application, to correlate it with your users.
 	 * Up to 64 characters (letters, digits, `_` and `-`). Never interpreted by OpenVidu Meet.
 	 */
 	PARTICIPANT_EXTERNAL_ID = 'participant-external-id',
@@ -28,40 +27,44 @@ export enum EmbeddedAttribute {
 	 */
 	PARTICIPANT_METADATA = 'participant-metadata',
 	/**
-	 * Join the meeting with the microphone active. This is the participant's initial state only:
-	 * they may mute afterwards.
-	 *
-	 * Setting it — to either value — **takes precedence over the room's own
-	 * `config.initialAudioActive`**; leaving it out means "no opinion", so the room's value applies
-	 * (and `true` when the room has none either). The `mediaPublishAudio` permission is not part of
-	 * that chain: it is a capability, and a denial always wins.
+	 * Join the meeting with the microphone active (`true`) or not (`false`). It **overrides the room's
+	 * `config.initialAudioActive`**; if omitted, the room's value applies. The participant can change it
+	 * afterwards, and a denied `mediaPublishAudio` permission always wins.
 	 */
 	INITIAL_AUDIO_ACTIVE = 'initial-audio-active',
 	/**
-	 * Join the meeting with the camera active. This is the participant's initial state only: they
-	 * may deactivate it afterwards.
-	 *
-	 * Setting it — to either value — **takes precedence over the room's own
-	 * `config.initialVideoActive`**; leaving it out means "no opinion", so the room's value applies
-	 * (and `true` when the room has none either). The `mediaPublishVideo` permission is not part of
-	 * that chain: it is a capability, and a denial always wins.
+	 * Join the meeting with the camera active (`true`) or not (`false`). It **overrides the room's
+	 * `config.initialVideoActive`**; if omitted, the room's value applies. The participant can change it
+	 * afterwards, and a denied `mediaPublishVideo` permission always wins.
 	 */
 	INITIAL_VIDEO_ACTIVE = 'initial-video-active',
+	/**
+	 * Language the interface starts in: `en`, `es`, `de`, `fr`, `zh` (Simplified), `hi`, `it`, `ja`,
+	 * `nl` or `pt` (European). A regional variant uses its language (`pt-BR` is `pt`). `auto` uses the
+	 * browser's preferred languages, and English when none is available.
+	 *
+	 * It **overrides the participant's previous choice**, which they can still change unless
+	 * `show-language-selector` is `false`. An unsupported value is ignored.
+	 */
+	LANGUAGE = 'language',
+	/**
+	 * Show the language selectors (`true` by default). `"false"` hides them, so the participant cannot
+	 * change the language.
+	 */
+	SHOW_LANGUAGE_SELECTOR = 'show-language-selector',
 	/**
 	 * Secret key for end-to-end encryption (E2EE).
 	 * If provided, the participant will join the meeting using E2EE key.
 	 */
 	E2EE_KEY = 'e2ee-key',
 	/**
-	 * URL to redirect to when leaving OpenVidu Meet. Redirection happens when the participant
-	 * dismisses the post-meeting, join, error or recording screen, right after the
-	 * **`embeddedCloseRequested` event** fires.
+	 * URL to redirect to when the participant dismisses the post-meeting, join, error or recording
+	 * screen, right after the **`embeddedCloseRequested` event** fires.
 	 */
 	LEAVE_REDIRECT_URL = 'leave-redirect-url',
 	/**
-	 * Whether to show only recordings instead of live meetings. Follows the standard HTML
-	 * boolean-attribute convention: a bare attribute or any value other than `"false"` is `true`;
-	 * `"false"` and an absent attribute are `false`.
+	 * Show only the recordings instead of the live meeting. A bare attribute or any value other than
+	 * `"false"` is `true`.
 	 */
 	SHOW_ONLY_RECORDINGS = 'show-only-recordings',
 	/**
@@ -90,6 +93,10 @@ export interface WebComponentPropertyValues {
 	initialAudioActive?: boolean;
 	/** Initial camera state (they may activate it later). Set: wins over `config.initialVideoActive`; omitted: the room decides. */
 	initialVideoActive?: boolean;
+	/** Language the interface starts in: `en`, `es`, `de`, `fr`, `zh`, `hi`, `it`, `ja`, `nl` or `pt`, regional variants included (`pt-BR` is `pt`), or `auto` for the browser's language. Wins over the participant's previous choice without replacing it. */
+	language?: string;
+	/** Show the language selectors (default `true`); `false` hides them so the participant cannot change the language. */
+	showLanguageSelector?: boolean;
 	/** Secret key for end-to-end encryption (E2EE). When provided the participant joins using E2EE. */
 	e2eeKey?: string;
 	/** URL to redirect to when the participant dismisses the post-meeting, join, error or recording screen, after `embeddedCloseRequested` fires. */

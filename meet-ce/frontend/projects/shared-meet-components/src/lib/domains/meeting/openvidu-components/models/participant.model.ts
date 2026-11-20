@@ -1,5 +1,5 @@
 import { computed, signal } from '@angular/core';
-import { MeetRoomMemberTokenMetadata, MeetRoomMemberUIBadge } from '@openvidu-meet/typings';
+import { handRaiseDateOf, MeetRoomMemberTokenMetadata, MeetRoomMemberUIBadge } from '@openvidu-meet/typings';
 import type { LocalAudioTrack, LocalVideoTrack, RemoteParticipant, Room, TrackPublication } from '../services/livekit';
 import {
 	AudioCaptureOptions,
@@ -137,6 +137,7 @@ export interface ParticipantDisplayProperties {
 	showMakeModeratorButton: boolean;
 	showUnmakeModeratorButton: boolean;
 	showKickButton: boolean;
+	showLowerHandButton: boolean;
 	canMuteMedia: boolean;
 }
 
@@ -292,6 +293,23 @@ export class ParticipantModel {
 	 */
 	get roomName(): string | undefined {
 		return this.room?.name;
+	}
+
+	/**
+	 * When the participant raised their hand (server clock, milliseconds since epoch), or
+	 * `undefined` while it is lowered. Read from the attribute the Meet server writes, which LiveKit
+	 * delivers to every participant, so the raised-hand queue reads the same on every client.
+	 */
+	get handRaiseDate(): number | undefined {
+		this._revision();
+		return handRaiseDateOf(this.participant.attributes);
+	}
+
+	/**
+	 * Whether the participant's hand is raised.
+	 */
+	get isHandRaised(): boolean {
+		return this.handRaiseDate !== undefined;
 	}
 
 	/**
@@ -714,3 +732,18 @@ export const parseParticipantMetadata = (metadata: unknown): MeetRoomMemberToken
 
 	return parsed as MeetRoomMemberTokenMetadata;
 };
+
+/**
+ * The participants with a raised hand, in the order they raised it. Ties are broken by identity, so
+ * every client orders the same timestamps the same way.
+ */
+export function raisedHandQueue<T extends { identity: string }>(
+	participants: readonly T[],
+	handRaiseDate: (participant: T) => number | undefined
+): T[] {
+	return participants
+		.map((participant) => ({ participant, raiseDate: handRaiseDate(participant) }))
+		.filter((entry): entry is { participant: T; raiseDate: number } => entry.raiseDate !== undefined)
+		.sort((a, b) => a.raiseDate - b.raiseDate || a.participant.identity.localeCompare(b.participant.identity))
+		.map((entry) => entry.participant);
+}

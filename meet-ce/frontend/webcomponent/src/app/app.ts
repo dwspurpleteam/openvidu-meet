@@ -35,6 +35,7 @@ import {
 	EmbeddedEventPayloadFor,
 	LeftEventReason,
 	type EmbeddedEvent,
+	type MeetParticipantModerationAction,
 	type MeetParticipantMuteOptions,
 	type WebComponentPropertyValues
 } from '@openvidu-meet/typings';
@@ -108,6 +109,9 @@ export class App {
 	// precedence over it. A plain `input(true, …)` cannot tell those two apart.
 	readonly initialAudioActive = input(undefined, { transform: optionalBooleanAttribute });
 	readonly initialVideoActive = input(undefined, { transform: optionalBooleanAttribute });
+	readonly language = input<string | undefined>(undefined);
+	// Tri-state like the two above: unset keeps the selectors, only an explicit `false` hides them.
+	readonly showLanguageSelector = input(undefined, { transform: optionalBooleanAttribute });
 	readonly e2eeKey = input<string | undefined>(undefined);
 	readonly leaveRedirectUrl = input<string | undefined>(undefined);
 	readonly showOnlyRecordings = input(false, { transform: booleanAttribute });
@@ -121,10 +125,13 @@ export class App {
 	readonly meetingLeft = output<EmbeddedEventPayloadFor<EmbeddedEventName.MEETING_LEFT>>();
 	readonly participantJoined = output<EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_JOINED>>();
 	readonly participantLeft = output<EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_LEFT>>();
+	readonly participantRoleChanged = output<EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_ROLE_CHANGED>>();
 	readonly mediaAudioStatusChanged = output<EmbeddedEventPayloadFor<EmbeddedEventName.MEDIA_AUDIO_STATUS_CHANGED>>();
 	readonly mediaVideoStatusChanged = output<EmbeddedEventPayloadFor<EmbeddedEventName.MEDIA_VIDEO_STATUS_CHANGED>>();
 	readonly mediaScreenShareStatusChanged =
 		output<EmbeddedEventPayloadFor<EmbeddedEventName.MEDIA_SCREEN_SHARE_STATUS_CHANGED>>();
+	readonly recordingStatusChanged = output<EmbeddedEventPayloadFor<EmbeddedEventName.RECORDING_STATUS_CHANGED>>();
+	readonly participantHandChanged = output<EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_HAND_CHANGED>>();
 	readonly embeddedCloseRequested = output<void>();
 
 	/** @deprecated Renamed to `meetingJoined`. Removed in 3.12.0. Dispatched alongside it. */
@@ -143,6 +150,8 @@ export class App {
 		participantMetadata: this.participantMetadata(),
 		initialAudioActive: this.initialAudioActive(),
 		initialVideoActive: this.initialVideoActive(),
+		language: this.language(),
+		showLanguageSelector: this.showLanguageSelector(),
 		e2eeKey: this.e2eeKey(),
 		leaveRedirectUrl: this.leaveRedirectUrl(),
 		showOnlyRecordings: this.showOnlyRecordings(),
@@ -296,6 +305,10 @@ export class App {
 		return this.commandService.participantMuteAll(media);
 	}
 
+	participantUpdateRole(participantIdentity: string, action: MeetParticipantModerationAction): Promise<void> {
+		return this.commandService.participantUpdateRole(participantIdentity, action);
+	}
+
 	mediaToggleAudio(active?: boolean): Promise<void> {
 		return this.commandService.mediaToggleAudio(active);
 	}
@@ -306,6 +319,26 @@ export class App {
 
 	mediaToggleScreenShare(active?: boolean): Promise<void> {
 		return this.commandService.mediaToggleScreenShare(active);
+	}
+
+	recordingStart(): Promise<void> {
+		return this.commandService.recordingStart();
+	}
+
+	recordingStop(): Promise<void> {
+		return this.commandService.recordingStop();
+	}
+
+	participantHandRaise(): Promise<void> {
+		return this.commandService.participantHandRaise();
+	}
+
+	participantHandLower(participantIdentity?: string): Promise<void> {
+		return this.commandService.participantHandLower(participantIdentity);
+	}
+
+	participantHandLowerAll(): Promise<void> {
+		return this.commandService.participantHandLowerAll();
 	}
 
 	// ── Internal ─────────────────────────────────────────────────────────────
@@ -341,6 +374,9 @@ export class App {
 			case EmbeddedEventName.PARTICIPANT_LEFT:
 				this.participantLeft.emit(payload);
 				break;
+			case EmbeddedEventName.PARTICIPANT_ROLE_CHANGED:
+				this.participantRoleChanged.emit(payload);
+				break;
 			case EmbeddedEventName.MEDIA_AUDIO_STATUS_CHANGED:
 				this.mediaAudioStatusChanged.emit(payload);
 				break;
@@ -349,6 +385,12 @@ export class App {
 				break;
 			case EmbeddedEventName.MEDIA_SCREEN_SHARE_STATUS_CHANGED:
 				this.mediaScreenShareStatusChanged.emit(payload);
+				break;
+			case EmbeddedEventName.RECORDING_STATUS_CHANGED:
+				this.recordingStatusChanged.emit(payload);
+				break;
+			case EmbeddedEventName.PARTICIPANT_HAND_CHANGED:
+				this.participantHandChanged.emit(payload);
 				break;
 		}
 	}

@@ -419,6 +419,14 @@ export const errorParticipantNotRoomMember = (participantIdentity: string, roomI
 	);
 };
 
+export const errorParticipantUpdateInProgress = (participantIdentity: string, roomId: string): OpenViduMeetError => {
+	return new OpenViduMeetError(
+		'Participant Error',
+		`Participant '${participantIdentity}' in room '${roomId}' is already being updated`,
+		409
+	);
+};
+
 export const errorParticipantCannotBePromotedToModerator = (
 	participantIdentity: string,
 	roomId: string
@@ -447,6 +455,26 @@ export const errorParticipantCannotBeMuted = (participantIdentity: string, roomI
 		`Participant '${participantIdentity}' in room '${roomId}' cannot be muted because they are a moderator`,
 		409
 	);
+};
+
+export const errorHandNotOwn = (participantIdentity: string, roomId: string): OpenViduMeetError => {
+	return new OpenViduMeetError(
+		'Participant Error',
+		`Participant '${participantIdentity}' in room '${roomId}' cannot have their hand raised by someone else`,
+		409
+	);
+};
+
+export const errorHandUpdateInProgress = (participantIdentity: string, roomId: string): OpenViduMeetError => {
+	return new OpenViduMeetError(
+		'Participant Error',
+		`The hand of participant '${participantIdentity}' in room '${roomId}' is already being changed, please retry`,
+		409
+	);
+};
+
+export const errorHandDisabled = (roomId: string): OpenViduMeetError => {
+	return new OpenViduMeetError('Hand Error', `Raising hands is disabled for room '${roomId}'`, 403);
 };
 
 // AI Assistant errors

@@ -7,7 +7,84 @@ Every release groups its `Added`, `Improved` and `Fixed` entries by who the chan
 - **UI**: the meeting and the console, what a person using Meet sees.
 - **Deployment**: configuration, limits and running the server.
 
-## 3.9.0 (unreleased)
+## 3.10.0 (unreleased)
+
+### Added
+
+#### Integration
+
+- Embedded commands `recordingStart` and `recordingStop`, gated by `recordingControl`, and the embedded event
+  `recordingStatusChanged`, carrying `{ recordingId, status }` to every participant.
+- Embedded attributes and URL parameters `language`, which sets the initial meeting language (a BCP 47
+  language tag, or `auto` for the browser's) over the participant's stored preference without replacing it,
+  and `show-language-selector`, which hides the language selectors when `false`.
+- Embedded command `participantUpdateRole`, gated by `participantPromote`, promotes a participant to moderator or
+  demotes them back. Every promotion and demotion is reported as the
+  [`participantRoleChanged`][3.10-participant-role-changed] webhook and as the embedded event of the same name to the
+  affected participant.
+- Raise hand, in the meeting and through the REST API, the embedded commands `participantHandRaise`,
+  `participantHandLower` and `participantHandLowerAll` and the embedded event and webhook `participantHandChanged`,
+  with the `participantHandLower` permission to lower other participants' hands and the room config
+  `raiseHand.enabled` to turn it off.
+
+### Improved
+
+#### Integration
+
+- The embedded event `participantLeft` carries the participant's `leaveReason`, the same one the
+  [`participantLeft`][3.9-participant-left] webhook carries.
+
+#### UI
+
+- The meeting settings panel takes the width of the other panels and groups its options in three tabs: Audio &
+  video, with a camera preview, on and off switches and a microphone level meter; Layout, which More options >
+  Adjust layout opens directly and which also sets the own video floating or in the grid; and General.
+
+### Fixed
+
+#### Integration
+
+- A room member token issued before its participant was demoted through
+  [`participantRoleUpdate`][3.10-participant-role-update] or `participantUpdateRole` stayed valid until it expired,
+  so they kept their moderator permissions. It is now rejected.
+- [`participantRoleUpdate`][3.10-participant-role-update], [`participantMute`][3.9-participant-mute],
+  [`participantMuteAll`][3.9-participant-mute-all], `updateRoomMember` and the embedded commands that use them
+  answered with an error when the notice to the affected participants could not be delivered, although the change
+  was already applied. They now succeed.
+- Two simultaneous [`participantRoleUpdate`][3.10-participant-role-update] requests for the same participant both
+  succeeded, and a promotion made while the participant's token was being regenerated could be undone by it. Both
+  now apply one after the other, so the second promotion answers `409`.
+- The `joinDate` of the embedded event `participantJoined` was the moment the join reached the browser, by the
+  browser's clock, and the one of `participantLeft` was rounded down to the second. Both now carry the `joinDate` of
+  the [`participantJoined`][3.9-participant-joined] webhook.
+
+#### UI
+
+- After leaving a meeting that was being recorded, joining another meeting with the same `<openvidu-meet>`
+  element showed that recording as still in progress. The recording indicator starts over with each meeting.
+- A participant promoted and demoted in quick succession, or whose permissions changed right after their role, could
+  be left with the permissions of the earlier change. The changes are now applied in the order they happen.
+- A participant promoted and demoted several times in a row got one notice per change, stacked over the meeting. Only
+  the notice of their current role is shown now.
+- A participant promoted to moderator or demoted while still joining a meeting kept the permissions of the role they
+  joined with. They now get the new role's permissions, and its notice, once in the meeting.
+- A participant whose room member token could not be renewed for a moment, because the server was unreachable or
+  failing, was taken out of the meeting to an access-revoked error page. They now stay in the meeting, and only losing
+  access to the room takes them out.
+- The notices a participant sees when promoted to moderator, demoted or given updated permissions were always in
+  English. They now follow the selected language.
+- In a narrow desktop browser window, the meeting toolbar overflowed the screen and hid some of its buttons. A window
+  narrower than 768 px now gets the compact toolbar a phone gets.
+- The notifications in the top corner of a meeting covered the header of an open side panel, its close button
+  included. They now sit beside the panel, or below its header when the panel fills the screen.
+
+#### Deployment
+
+- A `SERVER_TRUST_PROXY` subnet in IPv4-mapped IPv6 notation with a short prefix, such as `::ffff:10.0.0.0/8`,
+  trusted every client as a proxy, so rate limiting took the client address from `X-Forwarded-For`. Such a
+  subnet no longer matches every IPv4 address.
+
+## 3.9.0
 
 This release deprecates the old permissions, commands and events, and adds a new set of them. The new and old names run alongside each other for compatibility **until 3.12.0**, when the old names are removed.
 
@@ -143,6 +220,8 @@ registered on both receives it twice.
 - Unanswered webhooks caused active connections to grow continuously. Every webhook is answered.
 - The `openvidu/openvidu-meet` Docker image resolved its dependencies anew on every build instead of installing the versions in the lockfile. It now installs the locked versions.
 
+[3.10-participant-role-changed]: https://openvidu.io/3.10/meet/embedded/reference/api.html#/webhooks/participantRoleChangedWebhook
+[3.10-participant-role-update]: https://openvidu.io/3.10/meet/embedded/reference/api.html#/operations/participantRoleUpdate
 [3.9-api]: https://openvidu.io/3.9/meet/embedded/reference/api.html
 [3.9-meetings]: https://openvidu.io/3.9/meet/embedded/reference/api.html#/operations/meetingGet
 [3.9-webhooks-api]: https://openvidu.io/3.9/meet/embedded/reference/api.html#/operations/webhookList

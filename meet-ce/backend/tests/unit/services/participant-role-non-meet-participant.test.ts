@@ -10,12 +10,12 @@ import type { ParticipantInfo } from 'livekit-server-sdk';
 // The service modules form a cycle through the DI container module, so it has to be the one that
 // starts the graph (see meeting-mute.test.ts).
 import '../../../src/config/dependency-injector.config.js';
-import type { FrontendEventService } from '../../../src/services/frontend-event.service.js';
 import type { LiveKitService } from '../../../src/services/livekit.service.js';
 import type { LoggerService } from '../../../src/services/logger.service.js';
 import { RoomMemberService } from '../../../src/services/room-member.service.js';
 import type { RoomService } from '../../../src/services/room.service.js';
 import type { TokenService } from '../../../src/services/token.service.js';
+import type { WebhookDispatcherService } from '../../../src/services/webhook-dispatcher.service.js';
 
 /**
  * S2 (MEET-API-CONTRACT-AUDIT-FINDINGS.md): a participant that joined with a token Meet did not
@@ -45,9 +45,10 @@ describe('RoomMemberService.updateParticipantRole - S2: a participant Meet did n
 	let livekitService: {
 		getParticipant: jest.Mock<(roomId: string, identity: string) => Promise<ParticipantInfo>>;
 		updateParticipant: jest.Mock<
-			(roomId: string, identity: string, metadata: string, permission?: unknown) => Promise<ParticipantInfo>
+			(roomId: string, identity: string, update: { metadata?: string }) => Promise<ParticipantInfo>
 		>;
 	};
+	let webhookDispatcherService: { sendParticipantRoleChangedWebhook: jest.Mock };
 	let roomMemberService: RoomMemberService;
 
 	const promote = () =>
@@ -60,9 +61,11 @@ describe('RoomMemberService.updateParticipantRole - S2: a participant Meet did n
 				async () => ({ identity: IDENTITY, metadata: metadataInLiveKit }) as ParticipantInfo
 			),
 			updateParticipant: jest.fn(
-				async (_roomId, identity, metadata) => ({ identity, metadata }) as ParticipantInfo
+				async (_roomId, identity, { metadata }) =>
+					({ identity, metadata, tracks: [] as ParticipantInfo['tracks'] }) as ParticipantInfo
 			)
 		};
+		webhookDispatcherService = { sendParticipantRoleChangedWebhook: jest.fn() };
 
 		roomMemberService = new RoomMemberService(
 			...([
@@ -71,13 +74,16 @@ describe('RoomMemberService.updateParticipantRole - S2: a participant Meet did n
 				{ getMeetRoom: async () => ({ roles }) } as unknown as RoomService,
 				{},
 				{},
-				{ sendParticipantRoleUpdatedSignal: async () => {} } as unknown as FrontendEventService,
+				{},
 				livekitService as unknown as LiveKitService,
 				// The metadata is validated against the real token schema, in MeetParticipantHelper.
 				{} as unknown as TokenService,
 				{},
 				{},
-				{ startAutoRecordingIfNeeded: async () => {} }
+				{ startAutoRecordingIfNeeded: async () => {} },
+				webhookDispatcherService as unknown as WebhookDispatcherService,
+				{ revokeIssuedTokens: async () => {} },
+				{ withRetryLock: (_key: string, _ttl: number, update: () => Promise<unknown>) => update() }
 			] as unknown as ConstructorParameters<typeof RoomMemberService>)
 		);
 	});
@@ -97,18 +103,19 @@ describe('RoomMemberService.updateParticipantRole - S2: a participant Meet did n
 		await expect(promote()).rejects.toMatchObject({ statusCode: 409 });
 	});
 
-	it('never touches the participant in the media server', async () => {
+	it('never touches the participant in the media server nor reports a role change', async () => {
 		metadataInLiveKit = 'not json at all';
 
 		await expect(promote()).rejects.toMatchObject({ statusCode: 409 });
 		expect(livekitService.updateParticipant).not.toHaveBeenCalled();
+		expect(webhookDispatcherService.sendParticipantRoleChangedWebhook).not.toHaveBeenCalled();
 	});
 
 	it('still promotes a participant that joined through Meet', async () => {
 		await promote();
 
 		expect(livekitService.updateParticipant).toHaveBeenCalledTimes(1);
-		expect(JSON.parse(livekitService.updateParticipant.mock.calls[0]![2])).toMatchObject({
+		expect(JSON.parse(livekitService.updateParticipant.mock.calls[0]![2].metadata!)).toMatchObject({
 			badge: MeetRoomMemberUIBadge.MODERATOR,
 			isPromotedModerator: true
 		});

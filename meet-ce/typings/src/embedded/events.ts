@@ -1,4 +1,6 @@
-import { MeetParticipantPayload } from '../response/participant-response.js';
+import { MeetRecordingStatus } from '../database/recording.entity.js';
+import { MeetParticipantInfo, MeetParticipantPayload } from '../response/participant-response.js';
+import type { MeetParticipantDeparturePayload } from '../webhook.js';
 
 /**
  * All available events that can be emitted by the embedded OpenVidu Meet application.
@@ -31,6 +33,20 @@ export enum EmbeddedEventName {
 	 */
 	PARTICIPANT_LEFT = 'participantLeft',
 	/**
+	 * Event emitted to the local participant when they are promoted to moderator or returned to their
+	 * original role, once the permissions of the new role are in effect. A change made while the
+	 * participant is still joining is reported after `meetingJoined`. The other participants are not
+	 * notified.
+	 */
+	PARTICIPANT_ROLE_CHANGED = 'participantRoleChanged',
+	/**
+	 * Event emitted to every participant when a participant's hand is raised or lowered, by
+	 * themselves or by a moderator. A participant joining a meeting with raised hands receives one
+	 * event per raised hand, in queue order, right after `meetingJoined`. The queue is ordered by
+	 * `participant.handRaiseDate`.
+	 */
+	PARTICIPANT_HAND_CHANGED = 'participantHandChanged',
+	/**
 	 * Event emitted to the local participant when their microphone state changes. Emitted from the
 	 * prejoin screen onwards, before `meetingJoined`.
 	 */
@@ -45,6 +61,13 @@ export enum EmbeddedEventName {
 	 * prejoin screen onwards, before `meetingJoined`.
 	 */
 	MEDIA_SCREEN_SHARE_STATUS_CHANGED = 'mediaScreenShareStatusChanged',
+	/**
+	 * Event emitted to every participant when the status of the meeting's recording changes, whoever
+	 * started or stopped it. Each recording's statuses are reported in order, each at most once, and a
+	 * participant joining a meeting that is being recorded receives its current status right after
+	 * `meetingJoined`.
+	 */
+	RECORDING_STATUS_CHANGED = 'recordingStatusChanged',
 	/**
 	 * Event emitted when the participant asks to close OpenVidu Meet by dismissing the post-meeting,
 	 * join, error or recording screen. The host application responds by removing the embedded
@@ -142,14 +165,32 @@ export interface EmbeddedEventPayloads {
 	};
 	/**
 	 * Payload for the {@link EmbeddedEventName.PARTICIPANT_LEFT} event.
-	 *
-	 * It carries no departure reason: the authoritative one is only known server-side and travels
-	 * on the `participantLeft` webhook, while the departed participant's own client receives it
-	 * through its local `meetingLeft` event.
+	 * `participant.leaveReason` is why the participant left, the same value the `participantLeft`
+	 * webhook carries. When they left and how long they stayed are on the webhook alone: each client
+	 * would tell them by its own clock.
 	 */
 	[EmbeddedEventName.PARTICIPANT_LEFT]: {
 		roomId: string;
-		participant: MeetParticipantPayload;
+		participant: Omit<MeetParticipantDeparturePayload, 'leaveDate' | 'durationSeconds'>;
+	};
+	/**
+	 * Payload for the {@link EmbeddedEventName.PARTICIPANT_ROLE_CHANGED} event.
+	 * `participant` is the local participant with the role now in effect (see {@link MeetParticipantInfo}).
+	 */
+	[EmbeddedEventName.PARTICIPANT_ROLE_CHANGED]: {
+		roomId: string;
+		participant: MeetParticipantInfo;
+	};
+	/**
+	 * Payload for the {@link EmbeddedEventName.PARTICIPANT_HAND_CHANGED} event.
+	 * `participant.handRaised` is the new hand state (see {@link MeetParticipantInfo}). `origin` says
+	 * who lowered the hand, the participant or a moderator; a raise always originates from the
+	 * participant.
+	 */
+	[EmbeddedEventName.PARTICIPANT_HAND_CHANGED]: {
+		roomId: string;
+		participant: MeetParticipantInfo;
+		origin: MeetEventOrigin.PARTICIPANT | MeetEventOrigin.MODERATOR;
 	};
 	/**
 	 * Payload for the {@link EmbeddedEventName.MEDIA_AUDIO_STATUS_CHANGED} event.
@@ -174,6 +215,14 @@ export interface EmbeddedEventPayloads {
 	[EmbeddedEventName.MEDIA_SCREEN_SHARE_STATUS_CHANGED]: {
 		active: boolean;
 		origin: MeetEventOrigin;
+	};
+	/**
+	 * Payload for the {@link EmbeddedEventName.RECORDING_STATUS_CHANGED} event.
+	 * `status` is the recording's new status (see {@link MeetRecordingStatus}).
+	 */
+	[EmbeddedEventName.RECORDING_STATUS_CHANGED]: {
+		recordingId: string;
+		status: MeetRecordingStatus;
 	};
 	/**
 	 * Payload for the {@link EmbeddedEventName.JOINED} event.
@@ -270,6 +319,26 @@ export interface EmbeddedParticipantLeftEvent {
 }
 
 /**
+ * Event message emitted to the local participant when their role changes: the event name plus its
+ * payload, derived from {@link EmbeddedEventPayloadFor}.
+ * @category Communication
+ */
+export interface EmbeddedParticipantRoleChangedEvent {
+	event: EmbeddedEventName.PARTICIPANT_ROLE_CHANGED;
+	payload: EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_ROLE_CHANGED>;
+}
+
+/**
+ * Event message emitted when a participant's hand is raised or lowered: the event name plus its
+ * payload, derived from {@link EmbeddedEventPayloadFor}.
+ * @category Communication
+ */
+export interface EmbeddedParticipantHandChangedEvent {
+	event: EmbeddedEventName.PARTICIPANT_HAND_CHANGED;
+	payload: EmbeddedEventPayloadFor<EmbeddedEventName.PARTICIPANT_HAND_CHANGED>;
+}
+
+/**
  * Event message emitted to the local participant when their microphone state changes: the event
  * name plus its payload, derived from {@link EmbeddedEventPayloadFor}.
  * @category Communication
@@ -297,6 +366,16 @@ export interface EmbeddedMediaVideoStatusChangedEvent {
 export interface EmbeddedMediaScreenShareStatusChangedEvent {
 	event: EmbeddedEventName.MEDIA_SCREEN_SHARE_STATUS_CHANGED;
 	payload: EmbeddedEventPayloadFor<EmbeddedEventName.MEDIA_SCREEN_SHARE_STATUS_CHANGED>;
+}
+
+/**
+ * Event message emitted when the status of the meeting's recording changes: the event name plus its
+ * payload, derived from {@link EmbeddedEventPayloadFor}.
+ * @category Communication
+ */
+export interface EmbeddedRecordingStatusChangedEvent {
+	event: EmbeddedEventName.RECORDING_STATUS_CHANGED;
+	payload: EmbeddedEventPayloadFor<EmbeddedEventName.RECORDING_STATUS_CHANGED>;
 }
 
 /**
@@ -348,9 +427,12 @@ export type EmbeddedEvent =
 	| EmbeddedMeetingLeftEvent
 	| EmbeddedParticipantJoinedEvent
 	| EmbeddedParticipantLeftEvent
+	| EmbeddedParticipantRoleChangedEvent
+	| EmbeddedParticipantHandChangedEvent
 	| EmbeddedMediaAudioStatusChangedEvent
 	| EmbeddedMediaVideoStatusChangedEvent
 	| EmbeddedMediaScreenShareStatusChangedEvent
+	| EmbeddedRecordingStatusChangedEvent
 	| EmbeddedCloseRequestedEvent
 	| EmbeddedJoinedEvent
 	| EmbeddedLeftEvent

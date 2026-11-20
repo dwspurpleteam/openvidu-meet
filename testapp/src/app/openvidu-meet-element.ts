@@ -1,4 +1,9 @@
-import { EmbeddedEventName, EmbeddedEventPayloadFor, MeetParticipantMuteOptions } from '@openvidu-meet/typings';
+import {
+	EmbeddedEventName,
+	EmbeddedEventPayloadFor,
+	MeetParticipantModerationAction,
+	MeetParticipantMuteOptions
+} from '@openvidu-meet/typings';
 
 /**
  * Minimal typing for the `<openvidu-meet>` custom element registered by the
@@ -14,9 +19,15 @@ export interface OpenViduMeetElement extends HTMLElement {
 	participantKick(participantIdentity: string): void;
 	participantMute(participantIdentity: string, media: MeetParticipantMuteOptions): void;
 	participantMuteAll(media: MeetParticipantMuteOptions): void;
+	participantUpdateRole(participantIdentity: string, action: MeetParticipantModerationAction): void;
 	mediaToggleAudio(active?: boolean): void;
 	mediaToggleVideo(active?: boolean): void;
 	mediaToggleScreenShare(active?: boolean): void;
+	recordingStart(): void;
+	recordingStop(): void;
+	participantHandRaise(): void;
+	participantHandLower(participantIdentity?: string): void;
+	participantHandLowerAll(): void;
 	/** @deprecated Renamed to `meetingEnd()`. Removed in 3.12.0. Declared so the e2e can drive it. */
 	endMeeting(): void;
 	/** @deprecated Renamed to `meetingLeave()`. Removed in 3.12.0. Declared so the e2e can drive it. */

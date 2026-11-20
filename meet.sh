@@ -136,8 +136,7 @@ show_help() {
   echo
   echo -e "  ${BLUE}dev${NC}"
   echo "    Start development mode with watchers"
-  echo -e "    ${YELLOW}Options:${NC} --testapp            Include webcomponent testapp + webhook bridge (:5080/:5081)"
-  echo -e "             ${NC} --webcomponent       Include webcomponent watcher"
+  echo -e "    ${YELLOW}Options:${NC} --testapp            Include testapp + webhook bridge (:5080/:5081) and webcomponent watcher"
   echo
   echo -e "  ${BLUE}start${NC}"
   echo "    Start OpenVidu Meet in production or CI mode"
@@ -168,9 +167,10 @@ show_help() {
   echo "    Clone the private 'meet-pro' repository into ./meet-pro if you have access"
   echo
   echo -e "  ${BLUE}set-version${NC} <version>"
-  echo "    Set the \"version\" field in the root, backend and frontend package.json at once"
-  echo "    (via 'pnpm version'; meet-demo isn't a pnpm workspace member and isn't touched)"
-  echo "    Example: ./meet.sh set-version 3.9.0-dev"
+  echo "    Set the \"version\" field in the root, backend, frontend and meet-demo package.json at once,"
+  echo "    add the new release to CHANGELOG.md as \"(unreleased)\" if missing, and drop \"(unreleased)\""
+  echo "    from every other release"
+  echo "    Example: ./meet.sh set-version 3.10.0-dev (opens 3.10.0, marks 3.9.0 as released)"
   echo
 }
 
@@ -677,6 +677,16 @@ set_version() {
 
   sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${resolved_version}\"/" "$demo_pkg"
   echo -e "${GREEN}✓ ${demo_pkg} -> ${resolved_version}${NC}"
+
+  local release="${resolved_version%%-*}"
+  local heading="^## ${release}( |$)"
+
+  if ! grep -qE "$heading" CHANGELOG.md; then
+    sed -i "0,/^## /s//## ${release} (unreleased)\n\n&/" CHANGELOG.md
+  fi
+
+  sed -i -E "/${heading}/! s/^(## [0-9.]+) \(unreleased\)$/\1/" CHANGELOG.md
+  echo -e "${GREEN}✓ CHANGELOG.md: ${release} is the only release left unreleased${NC}"
 }
 
 # Clone private meet-pro repository into repository root
@@ -838,7 +848,7 @@ main() {
       test_e2e_frontend "$@"
       ;;
     dev)
-      # "$@" must be forwarded: dev() parses its own --testapp / --webcomponent flags,
+      # "$@" must be forwarded: dev() parses its own --testapp flag,
       # and parse_global_flags above silently ignores unknown arguments.
       source ./scripts/dev/dev.sh
       dev "$@"

@@ -4,6 +4,7 @@ import {
 	EmbeddedCommand,
 	EmbeddedCommandName,
 	EmbeddedEvent,
+	MeetParticipantModerationAction,
 	resolveEmbeddedCommandName
 } from '@openvidu-meet/typings';
 import { LoggerService } from '../../../shared/services/logger.service';
@@ -187,6 +188,26 @@ export class IframeBridgeService {
 				break;
 			}
 
+			case EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE: {
+				const payload = 'payload' in message ? message.payload : undefined;
+				const participantIdentity =
+					payload && 'participantIdentity' in payload ? payload.participantIdentity : undefined;
+				const requestedAction = payload && 'action' in payload ? payload.action : undefined;
+				const action = Object.values(MeetParticipantModerationAction).find(
+					(known) => known === requestedAction
+				);
+
+				if (!participantIdentity || !action) {
+					this.log.e(
+						'participantUpdateRole command received without a participantIdentity or a valid action'
+					);
+					return;
+				}
+
+				await this.commandService.participantUpdateRole(participantIdentity, action);
+				break;
+			}
+
 			case EmbeddedCommandName.MEDIA_TOGGLE_AUDIO:
 				await this.commandService.mediaToggleAudio(this.extractActivePayload(message));
 				break;
@@ -197,6 +218,31 @@ export class IframeBridgeService {
 
 			case EmbeddedCommandName.MEDIA_TOGGLE_SCREEN_SHARE:
 				await this.commandService.mediaToggleScreenShare(this.extractActivePayload(message));
+				break;
+
+			case EmbeddedCommandName.RECORDING_START:
+				await this.commandService.recordingStart();
+				break;
+
+			case EmbeddedCommandName.RECORDING_STOP:
+				await this.commandService.recordingStop();
+				break;
+
+			case EmbeddedCommandName.PARTICIPANT_HAND_RAISE:
+				await this.commandService.participantHandRaise();
+				break;
+
+			case EmbeddedCommandName.PARTICIPANT_HAND_LOWER: {
+				const payload = 'payload' in message ? message.payload : undefined;
+				const participantIdentity =
+					payload && 'participantIdentity' in payload ? payload.participantIdentity : undefined;
+
+				await this.commandService.participantHandLower(participantIdentity);
+				break;
+			}
+
+			case EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL:
+				await this.commandService.participantHandLowerAll();
 				break;
 
 			default:

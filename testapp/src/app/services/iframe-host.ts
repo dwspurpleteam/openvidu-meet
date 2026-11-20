@@ -3,6 +3,7 @@ import {
 	EmbeddedCommandName,
 	EmbeddedCommand,
 	EmbeddedEvent,
+	MeetParticipantModerationAction,
 	MeetParticipantMuteOptions
 } from '@openvidu-meet/typings';
 
@@ -85,6 +86,10 @@ export class IframeHostService {
 		this.post({ command: EmbeddedCommandName.PARTICIPANT_MUTE_ALL, payload: { media } });
 	}
 
+	participantUpdateRole(participantIdentity: string, action: MeetParticipantModerationAction): void {
+		this.post({ command: EmbeddedCommandName.PARTICIPANT_UPDATE_ROLE, payload: { participantIdentity, action } });
+	}
+
 	mediaToggleAudio(active?: boolean): void {
 		this.post({
 			command: EmbeddedCommandName.MEDIA_TOGGLE_AUDIO,
@@ -104,6 +109,29 @@ export class IframeHostService {
 			command: EmbeddedCommandName.MEDIA_TOGGLE_SCREEN_SHARE,
 			payload: active === undefined ? undefined : { active }
 		});
+	}
+
+	recordingStart(): void {
+		this.post({ command: EmbeddedCommandName.RECORDING_START });
+	}
+
+	recordingStop(): void {
+		this.post({ command: EmbeddedCommandName.RECORDING_STOP });
+	}
+
+	participantHandRaise(): void {
+		this.post({ command: EmbeddedCommandName.PARTICIPANT_HAND_RAISE });
+	}
+
+	participantHandLower(participantIdentity?: string): void {
+		this.post({
+			command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER,
+			payload: participantIdentity === undefined ? undefined : { participantIdentity }
+		});
+	}
+
+	participantHandLowerAll(): void {
+		this.post({ command: EmbeddedCommandName.PARTICIPANT_HAND_LOWER_ALL });
 	}
 
 	// ── Deprecated command names ────────────────────────────────────────────

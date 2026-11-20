@@ -1,4 +1,9 @@
-import { EmbeddedEventName, EmbeddedEventPayloadFor, MeetParticipantMuteOptions } from '@openvidu-meet/typings';
+import {
+	EmbeddedEventName,
+	EmbeddedEventPayloadFor,
+	MeetParticipantModerationAction,
+	MeetParticipantMuteOptions
+} from '@openvidu-meet/typings';
 import type { App } from '../app';
 
 /**
@@ -96,6 +101,10 @@ export function createOpenViduMeetElementClass(
 			this._getComponentInstance()?.participantMuteAll(media);
 		}
 
+		participantUpdateRole(participantIdentity: string, action: MeetParticipantModerationAction): void {
+			this._getComponentInstance()?.participantUpdateRole(participantIdentity, action);
+		}
+
 		mediaToggleAudio(active?: boolean): void {
 			this._getComponentInstance()?.mediaToggleAudio(active);
 		}
@@ -106,6 +115,26 @@ export function createOpenViduMeetElementClass(
 
 		mediaToggleScreenShare(active?: boolean): void {
 			this._getComponentInstance()?.mediaToggleScreenShare(active);
+		}
+
+		recordingStart(): void {
+			this._getComponentInstance()?.recordingStart();
+		}
+
+		recordingStop(): void {
+			this._getComponentInstance()?.recordingStop();
+		}
+
+		participantHandRaise(): void {
+			this._getComponentInstance()?.participantHandRaise();
+		}
+
+		participantHandLower(participantIdentity?: string): void {
+			this._getComponentInstance()?.participantHandLower(participantIdentity);
+		}
+
+		participantHandLowerAll(): void {
+			this._getComponentInstance()?.participantHandLowerAll();
 		}
 
 		// ── Deprecated method aliases ────────────────────────────────────────
