@@ -498,8 +498,8 @@ test.describe('Stream E2E Tests', () => {
 
 			// Restored video should be back at the top of the layout (far from bottom-right floating position)
 			expect(restoredBox!.y).toBeLessThan(floatingBox!.y);
-			expect(restoredBox!.width).toBeGreaterThan(floatingBox!.width);
-			expect(restoredBox!.height).toBeGreaterThan(floatingBox!.height);
+			expect(restoredBox!.width).toBeCloseTo(initialBox!.width, -1);
+			expect(restoredBox!.height).toBeCloseTo(initialBox!.height, -1);
 
 			await page.close();
 		});
@@ -668,7 +668,6 @@ test.describe('Stream E2E Tests', () => {
 			// Verify stream was dragged — while floating it is the small (~160px) PiP tile.
 			let streamBox = await getElementBoundingBox(page, '.local_participant .OV_stream_video.local');
 			expect(streamBox).not.toBeNull();
-			const floatedWidth = streamBox!.width;
 
 			// Dock (restore)
 			await hoverStream(page, '.local_participant .OV_stream_video.local');
@@ -683,7 +682,6 @@ test.describe('Stream E2E Tests', () => {
 			await expect(page.locator('.local_participant:has(.OV_stream_video.local)').first()).not.toHaveClass(
 				/OV_floating/
 			);
-			expect(streamBox!.width).toBeGreaterThan(floatedWidth + 50);
 			expect(streamBox!.width).toBeCloseTo(initialBox!.width, -1);
 			expect(streamBox!.y).toBeCloseTo(initialBox!.y, -1);
 
@@ -939,6 +937,7 @@ test.describe('Stream E2E Tests', () => {
 		test('should resize the floating LOCAL video using the SE corner handle', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
+			await dragStream(page, '.local_participant', 300, 300);
 
 			const beforeBox = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
 
@@ -954,6 +953,7 @@ test.describe('Stream E2E Tests', () => {
 		test('should resize the floating video width independently of its height', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
+			await dragStream(page, '.local_participant', 300, 300);
 			const before = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
 
 			await resizeStream(page, 'resize-se', 100, 0);
@@ -985,6 +985,7 @@ test.describe('Stream E2E Tests', () => {
 		test('should retain the floating video size after reattach and re-float', async ({ page }) => {
 			await openMeeting(page, accessUrl);
 			await floatStream(page);
+			await dragStream(page, '.local_participant', 300, 300);
 
 			// Record the default floating size
 			const defaultBox = await getSettledBoundingBox(page, '.local_participant:has(.OV_stream_video.local)');
@@ -1248,6 +1249,7 @@ test.describe('Stream E2E Tests', () => {
 			try {
 				// Verify A sees 2 remote streams
 				await expect(pageA.locator('.OV_stream.remote')).toHaveCount(2);
+				await dockStream(pageA);
 
 				// Mute first remote stream (should be B)
 				const firstRemote = pageA.locator('.OV_stream.remote').first();

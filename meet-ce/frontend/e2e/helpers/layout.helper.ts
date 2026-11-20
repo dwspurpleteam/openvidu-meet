@@ -160,7 +160,7 @@ export const getGridTiles = async (page: Page): Promise<{ grid: Box; tiles: Box[
 
 		return {
 			grid: box(document.querySelector('#layout')!),
-			tiles: [...document.querySelectorAll('#layout > *:not(.OV_ignored):not(.OV_floating) .OV_stream')].map(box)
+			tiles: [...document.querySelectorAll('#layout > *:not(.OV_ignored):not(.OV_floating):has(.OV_stream)')].map(box)
 		};
 	});
 
