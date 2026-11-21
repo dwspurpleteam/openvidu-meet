@@ -89,7 +89,7 @@ post:
         '404':
             description: The meeting or participant no longer exists.
         '409':
-            description: An activation is already being registered.
+            description: An activation is already being registered or a retry must use the original version.
         '422':
             description: Invalid activation request.
         '503':
