@@ -164,6 +164,7 @@ export class PluginActivationService {
 									'/configuration',
 								configurationSchema
 							);
+
 				if (
 					configuration &&
 					(configuration.pluginId !== selection.pluginId ||
@@ -172,6 +173,7 @@ export class PluginActivationService {
 				) {
 					throw this.managerUnavailable();
 				}
+
 				const registration = {
 					pluginId: selection.pluginId,
 					pluginVersion,
