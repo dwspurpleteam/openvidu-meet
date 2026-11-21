@@ -5,7 +5,7 @@ parameters:
       schema:
           type: string
 get:
-    operationId: listMeetingPluginActivations
+    operationId: meetingListPluginActivations
     summary: List plugin activations for the current meeting
     tags: [Internal API - Plugin Activations]
     security:
@@ -48,7 +48,7 @@ get:
         '503':
             description: The activation service is unavailable.
 post:
-    operationId: createMeetingPluginActivation
+    operationId: meetingCreatePluginActivation
     summary: Request plugin activation as a moderator in the current meeting
     tags: [Internal API - Plugin Activations]
     security:
@@ -89,7 +89,7 @@ post:
         '404':
             description: The meeting or participant no longer exists.
         '409':
-            description: An activation is already being registered or a retry must use the original version.
+            description: An activation is already being registered.
         '422':
             description: Invalid activation request.
         '503':
