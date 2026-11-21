@@ -48,6 +48,9 @@
 							@if (activation.isStarting(plugin.id)) {
 								<span class="plugin-status">{{ 'PLUGINS.STATUS.ACTIVATING' | translate }}</span>
 							} @else if (current) {
+								<span class="plugin-status"
+									>{{ 'PLUGINS.VERSION' | translate }}: {{ current.pluginVersion }}</span
+								>
 								<span class="plugin-status" [class.status-active]="current.state === 'ACTIVE'">
 									{{ 'PLUGINS.STATUS.' + current.state | translate }}
 								</span>

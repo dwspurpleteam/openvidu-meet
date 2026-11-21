@@ -43,7 +43,7 @@ describe('PluginActivationService', () => {
 					get: async (key: string) => redis.get(key),
 					set: async (key: string, data: string) => redis.set(key, data)
 				},
-				{ withLock: async (_key: string, _ttl: number, run: () => Promise<unknown>) => run() }
+				{ withRetryLock: async (_key: string, _ttl: number, run: () => Promise<unknown>) => run() }
 			] as unknown as ConstructorParameters<typeof PluginActivationService>)
 		);
 	});
@@ -73,6 +73,21 @@ describe('PluginActivationService', () => {
 					...selection,
 					activationId,
 					callId,
+					requestedVersion: selection.pluginVersion,
+					requestedRegistryId: 'local',
+					registryId: null,
+					pluginVersion: null,
+					state: 'ACTIVATING',
+					failureCode: null
+				})
+			)
+			.mockResolvedValueOnce(
+				Response.json({
+					...selection,
+					activationId,
+					callId,
+					requestedVersion: selection.pluginVersion,
+					requestedRegistryId: 'local',
 					registryId: 'local',
 					state: 'ACTIVE',
 					failureCode: null
@@ -122,6 +137,95 @@ describe('PluginActivationService', () => {
 		await expect(service.activate(roomId, callId, selection)).rejects.toMatchObject({ statusCode: 503 });
 	});
 
+	it('uses the version of the existing activation returned by Manager', async () => {
+		const existingVersion = '1.0.0';
+		jest.spyOn(globalThis, 'fetch')
+			.mockResolvedValueOnce(Response.json(configuration))
+			.mockResolvedValueOnce(Response.json({ activationId }, { status: 200 }))
+			.mockResolvedValueOnce(
+				Response.json({
+					activationId,
+					callId,
+					pluginId: selection.pluginId,
+					requestedVersion: existingVersion,
+					requestedRegistryId: 'local',
+					registryId: 'local',
+					pluginVersion: existingVersion,
+					state: 'ACTIVE',
+					failureCode: null
+				})
+			)
+			.mockResolvedValueOnce(Response.json({ ...configuration, pluginVersion: existingVersion }));
+
+		expect(await service.activate(roomId, callId, selection)).toMatchObject({
+			activationId,
+			pluginVersion: existingVersion,
+			state: 'ACTIVE'
+		});
+	});
+
+	it('returns one activation to concurrent moderators', async () => {
+		const redis = new Map<string, string>();
+		let pending = Promise.resolve();
+		let user = 0;
+		const session = {
+			getRoomIdFromMember: () => roomId,
+			getRoomMemberPermissions: () => ({ meetingJoin: true }),
+			getParticipantIdentity: () => `moderator-${++user}`
+		};
+		const participants = ['moderator-1', 'moderator-2'].map((participantIdentity) => ({
+			participantIdentity,
+			role: MeetRoomMemberRole.MODERATOR,
+			joinDate: 1000
+		}));
+		service = new PluginActivationService(
+			...([
+				session,
+				{ getRoom: async () => ({ sid: callId }) },
+				{
+					getParticipant: async (_room: string, identity: string) =>
+						participants.find((item) => item.participantIdentity === identity),
+					getParticipants: async () => participants
+				},
+				{
+					get: async (key: string) => redis.get(key),
+					set: async (key: string, value: string) => redis.set(key, value)
+				},
+				{
+					withRetryLock: async (_key: string, _ttl: number, run: () => Promise<unknown>) => {
+						const result = pending.then(run);
+						pending = result.then(() => undefined);
+						return result;
+					}
+				}
+			] as unknown as ConstructorParameters<typeof PluginActivationService>)
+		);
+		const status = {
+			...selection,
+			activationId,
+			callId,
+			requestedVersion: selection.pluginVersion,
+			requestedRegistryId: 'local',
+			registryId: null,
+			pluginVersion: null,
+			state: 'ACTIVATING',
+			failureCode: null
+		};
+		const fetch = jest
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValueOnce(Response.json(configuration))
+			.mockResolvedValueOnce(Response.json({ activationId }, { status: 202 }))
+			.mockResolvedValueOnce(Response.json(status))
+			.mockResolvedValueOnce(Response.json(status));
+		const results = await Promise.all([
+			service.activate(roomId, callId, selection),
+			service.activate(roomId, callId, { ...selection, pluginVersion: '2.0.0' })
+		]);
+		expect(results.map((item) => item.activationId)).toEqual([activationId, activationId]);
+		expect(results.map((item) => item.pluginVersion)).toEqual([selection.pluginVersion, selection.pluginVersion]);
+		expect(fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+	});
+
 	it('returns the Manager failure code and reports a later status outage', async () => {
 		jest.spyOn(globalThis, 'fetch')
 			.mockResolvedValueOnce(Response.json(configuration))
@@ -131,6 +235,21 @@ describe('PluginActivationService', () => {
 					...selection,
 					activationId,
 					callId,
+					requestedVersion: selection.pluginVersion,
+					requestedRegistryId: 'local',
+					registryId: null,
+					pluginVersion: null,
+					state: 'ACTIVATING',
+					failureCode: null
+				})
+			)
+			.mockResolvedValueOnce(
+				Response.json({
+					...selection,
+					activationId,
+					callId,
+					requestedVersion: selection.pluginVersion,
+					requestedRegistryId: 'local',
 					registryId: 'local',
 					state: 'FAILED',
 					failureCode: 'START_FAILED'
