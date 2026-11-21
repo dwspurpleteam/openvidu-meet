@@ -27,6 +27,8 @@ const registrationSchema = z.object({ activationId: z.uuid() });
 const statusSchema = registrationSchema.extend({
 	callId: z.string(),
 	pluginId: z.string(),
+	requestedVersion: z.string().nullable(),
+	requestedRegistryId: z.string().nullable(),
 	pluginVersion: z.string().nullable(),
 	registryId: z.string().nullable(),
 	state: activationStates,
@@ -112,39 +114,81 @@ export class PluginActivationService {
 
 		const key = this.storageKey(callId);
 		const lock = RedisLockPrefix.BASE + RedisLockName.PLUGIN_ACTIVATIONS + ':manager:' + callId;
-		const view = await this.mutex.withLock(lock, ms('30s'), async () => {
-			const items = await this.read(key);
-			const previous = items.find((item) => item.pluginId === selection.pluginId);
-			const others = items.filter((item) => item.pluginId !== selection.pluginId);
+		const view = await this.mutex.withRetryLock(
+			lock,
+			ms('30s'),
+			async () => {
+				const items = await this.read(key);
+				const previous = items.find((item) => item.pluginId === selection.pluginId);
+				const others = items.filter((item) => item.pluginId !== selection.pluginId);
 
-			if (previous && 'activationId' in previous) {
-				const existing = await this.status(callId, previous);
+				if (previous && 'activationId' in previous) {
+					const existing = await this.status(callId, previous);
 
-				if (existing.state !== 'FAILED' && existing.state !== 'STOPPED') return existing;
-			}
+					if (existing.state !== 'FAILED' && existing.state !== 'STOPPED') return existing;
+				}
 
-			const draft =
-				previous && 'request' in previous ? previous : await this.prepare(roomId, callId, identity, selection);
+				const draft =
+					previous && 'request' in previous
+						? previous
+						: await this.prepare(roomId, callId, identity, selection);
 
-			if (draft.pluginVersion !== selection.pluginVersion) {
-				throw new OpenViduMeetError('Conflict', 'Retry the pending registration with the same version', 409);
-			}
+				// Save the exact request before sending it so a timeout or crash can be retried idempotently.
+				await this.save(key, [...others, draft]);
+				const { activationId } = await this.managerRequest('/v1/activations', registrationSchema, {
+					method: 'POST',
+					body: JSON.stringify(draft.request)
+				});
+				const status = await this.managerRequest('/v1/activations/' + activationId, statusSchema);
+				const pluginVersion = status.pluginVersion ?? status.requestedVersion;
+				const registryId = status.registryId ?? status.requestedRegistryId;
 
-			// Save the exact request before sending it so a timeout or crash can be retried idempotently.
-			await this.save(key, [...others, draft]);
-			const { activationId } = await this.managerRequest('/v1/activations', registrationSchema, {
-				method: 'POST',
-				body: JSON.stringify(draft.request)
-			});
-			const registration = {
-				...selection,
-				activationId,
-				ui: draft.ui,
-				registryId: draft.request.pluginRegistryId
-			};
-			await this.save(key, [...others, registration]);
-			return this.view(registration, callId, 'ACTIVATING', null);
-		});
+				if (
+					status.activationId !== activationId ||
+					status.callId !== callId ||
+					status.pluginId !== selection.pluginId ||
+					!pluginVersion ||
+					!registryId
+				) {
+					throw this.managerUnavailable();
+				}
+
+				const configuration =
+					pluginVersion === draft.pluginVersion && registryId === draft.request.pluginRegistryId
+						? null
+						: await this.managerRequest(
+								'/v1/plugins/' +
+									encodeURIComponent(selection.pluginId) +
+									'/versions/' +
+									encodeURIComponent(pluginVersion) +
+									'/configuration',
+								configurationSchema
+							);
+
+				if (
+					configuration &&
+					(configuration.pluginId !== selection.pluginId ||
+						configuration.pluginVersion !== pluginVersion ||
+						configuration.registryId !== registryId)
+				) {
+					throw this.managerUnavailable();
+				}
+
+				const registration = {
+					pluginId: selection.pluginId,
+					pluginVersion,
+					activationId,
+					ui: configuration
+						? { url: configuration.manifest.frontend['url-web'], title: configuration.manifest.name }
+						: draft.ui,
+					registryId
+				};
+				await this.save(key, [...others, registration]);
+				return this.view(registration, callId, status.state, status.failureCode);
+			},
+			40,
+			200
+		);
 
 		if (!view) throw new OpenViduMeetError('Conflict', 'A plugin registration is already in progress', 409);
 
