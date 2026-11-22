@@ -4,7 +4,7 @@ import { applyBackgroundEffect, startScreensharing, stopScreensharing } from '..
 import { createRoom, deleteRooms } from '../helpers/meet-api.helper';
 import { openMoreOptionsMenu } from '../helpers/panels.helper';
 import { startRecording, stopRecording } from '../helpers/recordings.helper';
-import { expectSignificantImageDifferenceEventually, screenshotWcElement } from '../helpers/stream.helper';
+import { readVideoFrameColors } from '../helpers/stream.helper';
 import { leaveMeeting, openMeeting } from '../helpers/testapp.helper';
 import { openWebcomponentWithAttributes } from '../helpers/webcomponent-attributes.helper';
 import { INTEGRATIONS, meetLocator, wcLocator } from '../helpers/webcomponent.helper';
@@ -76,13 +76,22 @@ test.describe('Room Features E2E Tests', () => {
 		test('should apply virtual background and detect visual changes', async ({ page }) => {
 			await openMeeting(page, roomId, { role: 'speaker' });
 
-			const before = await screenshotWcElement(page, '.OV_video-element');
-			await applyBackgroundEffect(page, 'professional-1');
+			const video = wcLocator(page, '.OV_stream.local.camera-source video.OV_video-element');
+			await expect(video).toBeVisible();
+			await expect
+				.poll(async () => (await readVideoFrameColors(video)).green, {
+					message: 'The fake camera should show its green background',
+					timeout: 15_000
+				})
+				.toBeGreaterThan(0.7);
 
-			await expectSignificantImageDifferenceEventually(page, '.OV_video-element', before, {
-				threshold: 0.4,
-				minDiffPixels: 500
-			});
+			await applyBackgroundEffect(page, 'professional-1');
+			await expect
+				.poll(async () => (await readVideoFrameColors(video)).litNonGreen, {
+					message: 'The virtual background should replace the green background in the video',
+					timeout: 15_000
+				})
+				.toBeGreaterThan(0.7);
 
 			await leaveMeeting(page);
 		});
