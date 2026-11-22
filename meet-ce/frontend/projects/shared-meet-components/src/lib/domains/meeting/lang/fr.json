@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "Impossible de charger les versions du plugin.",
 		"NO_VERSIONS": "Aucune version n’a été publiée.",
 		"IFRAME_UNAVAILABLE": "L’interface de ce plugin ne peut pas être ouverte dans la réunion.",
+		"PERMISSIONS": {
+			"TITLE": "Autorisations demandées",
+			"LOADING": "Chargement des autorisations…",
+			"LOAD_FAILED": "Impossible de charger les autorisations du plugin.",
+			"EMPTY": "Aucune autorisation déclarée.",
+			"GROUPS": {
+				"INITIAL_STATE": "Lire au démarrage",
+				"EVENT_TYPES": "Recevoir les événements de la réunion",
+				"EVENT_GROUPS": "Recevoir tous les événements de ces groupes",
+				"MEDIA_INPUT": "Recevoir des flux multimédias",
+				"MEDIA_OUTPUT": "Publier des flux multimédias",
+				"ACTIONS": "Exécuter des actions"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Liste actuelle des participants"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Arrivée d’un participant",
+					"participant.left": "Départ d’un participant",
+					"participant.connection_aborted": "Connexion d’un participant interrompue",
+					"participant.reconnecting": "Reconnexion d’un participant en cours",
+					"participant.reconnected": "Participant reconnecté",
+					"participant.kicked": "Exclusion d’un participant",
+					"media.audio_muted": "Coupure d’un microphone",
+					"media.audio_unmuted": "Réactivation d’un microphone",
+					"media.video_enabled": "Activation d’une caméra",
+					"media.video_disabled": "Désactivation d’une caméra",
+					"media.screen_share_started": "Début du partage d’écran",
+					"media.screen_share_stopped": "Fin du partage d’écran",
+					"media.track_published": "Publication d’une piste multimédia",
+					"media.track_unpublished": "Fin de la publication d’une piste multimédia",
+					"interaction.chat_message_received": "Réception d’un message de chat",
+					"call.ended": "Fin de la réunion"
+				},
+				"EVENT_GROUPS": {
+					"participant": "État de connexion des participants",
+					"media": "Microphone, caméra, partage d’écran et pistes multimédias",
+					"interaction": "Interactions entre participants",
+					"call": "Cycle de vie de la réunion"
+				},
+				"MEDIA": {
+					"AUDIO": "Audio du microphone",
+					"VIDEO": "Vidéo de la caméra",
+					"SCREEN_SHARE": "Vidéo du partage d’écran",
+					"SCREEN_SHARE_AUDIO": "Audio du partage d’écran"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Disponible",
 			"ACTIVATING": "Activation…",

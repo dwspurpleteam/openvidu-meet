@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "プラグインのバージョンを取得できませんでした。",
 		"NO_VERSIONS": "公開済みのバージョンはありません。",
 		"IFRAME_UNAVAILABLE": "この会議では、このプラグインの画面を開けません。",
+		"PERMISSIONS": {
+			"TITLE": "要求される権限",
+			"LOADING": "権限を読み込み中…",
+			"LOAD_FAILED": "プラグインの権限を読み込めませんでした。",
+			"EMPTY": "宣言されている権限はありません。",
+			"GROUPS": {
+				"INITIAL_STATE": "起動時に読み取るデータ",
+				"EVENT_TYPES": "会議イベントの受信",
+				"EVENT_GROUPS": "次のグループの全イベントを受信",
+				"MEDIA_INPUT": "メディアの受信",
+				"MEDIA_OUTPUT": "メディアの配信",
+				"ACTIONS": "操作の実行"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "現在の参加者一覧"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "参加者の入室",
+					"participant.left": "参加者の退室",
+					"participant.connection_aborted": "参加者の接続中止",
+					"participant.reconnecting": "参加者が再接続中",
+					"participant.reconnected": "参加者の再接続完了",
+					"participant.kicked": "参加者の強制退出",
+					"media.audio_muted": "マイクのミュート",
+					"media.audio_unmuted": "マイクのミュート解除",
+					"media.video_enabled": "カメラのオン",
+					"media.video_disabled": "カメラのオフ",
+					"media.screen_share_started": "画面共有の開始",
+					"media.screen_share_stopped": "画面共有の終了",
+					"media.track_published": "メディアトラックの配信開始",
+					"media.track_unpublished": "メディアトラックの配信終了",
+					"interaction.chat_message_received": "チャットメッセージの受信",
+					"call.ended": "会議の終了"
+				},
+				"EVENT_GROUPS": {
+					"participant": "参加者の接続状態の変化",
+					"media": "マイク、カメラ、画面共有、メディアトラック",
+					"interaction": "参加者同士のやりとり",
+					"call": "会議のライフサイクル"
+				},
+				"MEDIA": {
+					"AUDIO": "マイクの音声",
+					"VIDEO": "カメラ映像",
+					"SCREEN_SHARE": "画面共有の映像",
+					"SCREEN_SHARE_AUDIO": "画面共有の音声"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "利用可能",
 			"ACTIVATING": "有効化中…",

@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "प्लगइन के संस्करण लोड नहीं हो सके।",
 		"NO_VERSIONS": "कोई संस्करण प्रकाशित नहीं हुआ है।",
 		"IFRAME_UNAVAILABLE": "इस मीटिंग में इस प्लगइन का इंटरफ़ेस नहीं खोला जा सकता।",
+		"PERMISSIONS": {
+			"TITLE": "अनुरोधित अनुमतियाँ",
+			"LOADING": "अनुमतियाँ लोड हो रही हैं…",
+			"LOAD_FAILED": "प्लगइन की अनुमतियाँ लोड नहीं हो सकीं।",
+			"EMPTY": "कोई अनुमति घोषित नहीं है।",
+			"GROUPS": {
+				"INITIAL_STATE": "शुरू होने पर पढ़ना",
+				"EVENT_TYPES": "मीटिंग इवेंट प्राप्त करना",
+				"EVENT_GROUPS": "इन समूहों के सभी इवेंट प्राप्त करना",
+				"MEDIA_INPUT": "मीडिया प्राप्त करना",
+				"MEDIA_OUTPUT": "मीडिया प्रकाशित करना",
+				"ACTIONS": "कार्रवाइयाँ करना"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "प्रतिभागियों की मौजूदा सूची"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "प्रतिभागी शामिल होता है",
+					"participant.left": "प्रतिभागी चला जाता है",
+					"participant.connection_aborted": "प्रतिभागी का कनेक्शन बीच में बंद होता है",
+					"participant.reconnecting": "प्रतिभागी फिर से कनेक्ट हो रहा है",
+					"participant.reconnected": "प्रतिभागी फिर से कनेक्ट हो गया है",
+					"participant.kicked": "प्रतिभागी को हटाया जाता है",
+					"media.audio_muted": "माइक्रोफ़ोन म्यूट होता है",
+					"media.audio_unmuted": "माइक्रोफ़ोन का म्यूट हटता है",
+					"media.video_enabled": "कैमरा चालू होता है",
+					"media.video_disabled": "कैमरा बंद होता है",
+					"media.screen_share_started": "स्क्रीन शेयरिंग शुरू होती है",
+					"media.screen_share_stopped": "स्क्रीन शेयरिंग बंद होती है",
+					"media.track_published": "मीडिया ट्रैक प्रकाशित होता है",
+					"media.track_unpublished": "मीडिया ट्रैक का प्रकाशन बंद होता है",
+					"interaction.chat_message_received": "चैट संदेश मिलता है",
+					"call.ended": "मीटिंग समाप्त होती है"
+				},
+				"EVENT_GROUPS": {
+					"participant": "प्रतिभागियों के कनेक्शन में बदलाव",
+					"media": "माइक्रोफ़ोन, कैमरा, स्क्रीन शेयरिंग और मीडिया ट्रैक",
+					"interaction": "प्रतिभागियों की बातचीत",
+					"call": "मीटिंग के जीवनचक्र के इवेंट"
+				},
+				"MEDIA": {
+					"AUDIO": "माइक्रोफ़ोन का ऑडियो",
+					"VIDEO": "कैमरे का वीडियो",
+					"SCREEN_SHARE": "शेयर की गई स्क्रीन का वीडियो",
+					"SCREEN_SHARE_AUDIO": "शेयर की गई स्क्रीन का ऑडियो"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "उपलब्ध",
 			"ACTIVATING": "सक्रिय हो रहा है…",

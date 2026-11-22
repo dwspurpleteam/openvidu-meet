@@ -102,6 +102,44 @@ h4 {
 	background: var(--ov-surface-color);
 }
 
+.has-permissions > button {
+	align-self: flex-end;
+}
+
+.plugin-permissions {
+	margin-top: 10px;
+	padding-inline-start: 10px;
+	border-inline-start: 2px solid var(--ov-border-color);
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--ov-text-secondary-color);
+}
+
+.plugin-permissions h5,
+.plugin-permissions dt {
+	margin: 0;
+	font-size: inherit;
+	font-weight: 600;
+	color: var(--ov-text-surface-color);
+}
+
+.plugin-permissions dl {
+	margin: 6px 0 0;
+}
+
+.plugin-permissions dd {
+	margin: 0 0 6px;
+}
+
+.plugin-permissions ul {
+	margin: 0;
+	padding-inline-start: 16px;
+}
+
+.plugin-permissions p.permissions-error {
+	color: var(--ov-error-color);
+}
+
 .status-active {
 	color: var(--ov-success-color);
 }

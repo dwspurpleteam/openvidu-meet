@@ -7,7 +7,12 @@ import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 import { RuntimeConfigService } from '../../../../shared/services/runtime-config.service';
 import { PanelService } from '../../openvidu-components/services/panel/panel.service';
 import { PluginActivationService } from '../../services/plugin-activation.service';
-import { PluginCatalogService, RegistryPlugin } from '../../services/plugin-catalog.service';
+import {
+	PluginCatalogService,
+	PluginPermissionGroup,
+	PluginPermissionKind,
+	RegistryPlugin
+} from '../../services/plugin-catalog.service';
 
 interface VersionSelection {
 	pluginId: string;
@@ -15,6 +20,36 @@ interface VersionSelection {
 	loading: boolean;
 	failed: boolean;
 }
+
+type PermissionSelection = { pluginId: string; version: string } & (
+	{ status: 'loading' | 'failed' } | { status: 'loaded'; groups: PluginPermissionGroup[] }
+);
+
+const mediaPermissions = new Set(['AUDIO', 'VIDEO', 'SCREEN_SHARE', 'SCREEN_SHARE_AUDIO']);
+const knownPermissions: Partial<Record<PluginPermissionKind, ReadonlySet<string>>> = {
+	INITIAL_STATE: new Set(['participants']),
+	EVENT_TYPES: new Set([
+		'participant.joined',
+		'participant.left',
+		'participant.connection_aborted',
+		'participant.reconnecting',
+		'participant.reconnected',
+		'participant.kicked',
+		'media.audio_muted',
+		'media.audio_unmuted',
+		'media.video_enabled',
+		'media.video_disabled',
+		'media.screen_share_started',
+		'media.screen_share_stopped',
+		'media.track_published',
+		'media.track_unpublished',
+		'interaction.chat_message_received',
+		'call.ended'
+	]),
+	EVENT_GROUPS: new Set(['participant', 'media', 'interaction', 'call']),
+	MEDIA_INPUT: mediaPermissions,
+	MEDIA_OUTPUT: mediaPermissions
+};
 
 @Component({
 	selector: 'ov-meeting-plugins-panel',
@@ -34,7 +69,7 @@ export class MeetingPluginsPanelComponent {
 	readonly loading = signal(false);
 	readonly loadFailed = signal(false);
 	protected readonly selection = signal<VersionSelection | null>(null);
-	protected readonly selectedVersion = signal('');
+	protected readonly permissions = signal<PermissionSelection | null>(null);
 	protected readonly activationFailed = signal<string | null>(null);
 
 	constructor() {
@@ -71,7 +106,7 @@ export class MeetingPluginsPanelComponent {
 	protected async chooseVersion(pluginId: string): Promise<void> {
 		const request: VersionSelection = { pluginId, versions: [], loading: true, failed: false };
 		this.selection.set(request);
-		this.selectedVersion.set('');
+		this.permissions.set(null);
 		this.activationFailed.set(null);
 
 		try {
@@ -80,16 +115,48 @@ export class MeetingPluginsPanelComponent {
 			if (this.selection() === request) {
 				this.selection.set({ ...request, loading: false, versions });
 
-				if (versions.length === 1) this.selectedVersion.set(versions[0]);
+				if (versions.length === 1) void this.selectVersion(versions[0]);
 			}
 		} catch {
 			if (this.selection() === request) this.selection.set({ ...request, loading: false, failed: true });
 		}
 	}
 
-	protected async activatePlugin(pluginId: string, version: string): Promise<void> {
+	protected async selectVersion(version: string): Promise<void> {
+		const selection = this.selection();
 		this.activationFailed.set(null);
 
-		if (!(await this.activation.activate(pluginId, version))) this.activationFailed.set(pluginId);
+		if (!selection || !selection.versions.includes(version)) {
+			this.permissions.set(null);
+			return;
+		}
+
+		const request: PermissionSelection = { pluginId: selection.pluginId, version, status: 'loading' };
+		this.permissions.set(request);
+
+		try {
+			const groups = await this.catalog.getPermissions(request.pluginId, version);
+
+			if (this.permissions() === request) this.permissions.set({ ...request, status: 'loaded', groups });
+		} catch {
+			if (this.permissions() === request) this.permissions.set({ ...request, status: 'failed' });
+		}
+	}
+
+	protected permissionLabel(kind: PluginPermissionKind, value: string): string | undefined {
+		if (!knownPermissions[kind]?.has(value)) return undefined;
+
+		const group = kind === 'MEDIA_INPUT' || kind === 'MEDIA_OUTPUT' ? 'MEDIA' : kind;
+		return `PLUGINS.PERMISSIONS.VALUES.${group}.${value}`;
+	}
+
+	protected async activatePlugin(pluginId: string): Promise<void> {
+		const permissions = this.permissions();
+
+		if (permissions?.status !== 'loaded' || permissions.pluginId !== pluginId) return;
+
+		this.activationFailed.set(null);
+
+		if (!(await this.activation.activate(pluginId, permissions.version))) this.activationFailed.set(pluginId);
 	}
 }

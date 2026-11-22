@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "Die Plugin-Versionen konnten nicht geladen werden.",
 		"NO_VERSIONS": "Es wurde noch keine Version veröffentlicht.",
 		"IFRAME_UNAVAILABLE": "Die Oberfläche dieses Plugins kann im Meeting nicht geöffnet werden.",
+		"PERMISSIONS": {
+			"TITLE": "Angeforderte Berechtigungen",
+			"LOADING": "Berechtigungen werden geladen…",
+			"LOAD_FAILED": "Die Plugin-Berechtigungen konnten nicht geladen werden.",
+			"EMPTY": "Keine Berechtigungen deklariert.",
+			"GROUPS": {
+				"INITIAL_STATE": "Beim Start lesen",
+				"EVENT_TYPES": "Meeting-Ereignisse empfangen",
+				"EVENT_GROUPS": "Alle Ereignisse dieser Gruppen empfangen",
+				"MEDIA_INPUT": "Medien empfangen",
+				"MEDIA_OUTPUT": "Medien veröffentlichen",
+				"ACTIONS": "Aktionen ausführen"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Aktuelle Teilnehmerliste"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Teilnehmer tritt bei",
+					"participant.left": "Teilnehmer verlässt das Meeting",
+					"participant.connection_aborted": "Verbindung des Teilnehmers abgebrochen",
+					"participant.reconnecting": "Teilnehmer verbindet sich erneut",
+					"participant.reconnected": "Teilnehmer ist wieder verbunden",
+					"participant.kicked": "Teilnehmer wird entfernt",
+					"media.audio_muted": "Mikrofon wird stummgeschaltet",
+					"media.audio_unmuted": "Mikrofon wird wieder aktiviert",
+					"media.video_enabled": "Kamera wird eingeschaltet",
+					"media.video_disabled": "Kamera wird ausgeschaltet",
+					"media.screen_share_started": "Bildschirmfreigabe beginnt",
+					"media.screen_share_stopped": "Bildschirmfreigabe endet",
+					"media.track_published": "Medienspur wird veröffentlicht",
+					"media.track_unpublished": "Veröffentlichung einer Medienspur endet",
+					"interaction.chat_message_received": "Chatnachricht wird empfangen",
+					"call.ended": "Meeting endet"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Verbindungsänderungen der Teilnehmer",
+					"media": "Mikrofon, Kamera, Bildschirmfreigabe und Medienspuren",
+					"interaction": "Interaktionen der Teilnehmer",
+					"call": "Lebenszyklus des Meetings"
+				},
+				"MEDIA": {
+					"AUDIO": "Mikrofonton",
+					"VIDEO": "Kamerabild",
+					"SCREEN_SHARE": "Bild der Bildschirmfreigabe",
+					"SCREEN_SHARE_AUDIO": "Ton der Bildschirmfreigabe"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Verfügbar",
 			"ACTIVATING": "Wird aktiviert…",

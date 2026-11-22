@@ -33,10 +33,11 @@
 				@if (plugins().length === 0) {
 					<p class="empty-message">{{ 'PLUGINS.EMPTY_CATALOG' | translate }}</p>
 				}
+				@let versions = selection();
+				@let preview = permissions();
 				@for (plugin of plugins(); track plugin.id) {
 					@let current = activation.activations().get(plugin.id);
-					@let versions = selection();
-					<article class="plugin-row">
+					<article class="plugin-row" [class.has-permissions]="preview?.pluginId === plugin.id">
 						<div class="plugin-copy">
 							<div class="plugin-name">
 								<mat-icon aria-hidden="true">extension</mat-icon>
@@ -82,19 +83,72 @@
 										{{ 'PLUGINS.VERSION' | translate }}
 										<select
 											#versionSelect
-											(change)="selectedVersion.set(versionSelect.value)"
+											(change)="selectVersion(versionSelect.value)"
 											[disabled]="activation.isStarting(plugin.id)"
 										>
-											<option value="" [selected]="!selectedVersion()">
+											<option value="" [selected]="!preview">
 												{{ 'PLUGINS.CHOOSE_VERSION' | translate }}
 											</option>
 											@for (version of versions?.versions; track version) {
-												<option [value]="version" [selected]="selectedVersion() === version">
+												<option [value]="version" [selected]="preview?.version === version">
 													{{ version }}
 												</option>
 											}
 										</select>
 									</label>
+									@if (preview?.pluginId === plugin.id) {
+										<section class="plugin-permissions" aria-labelledby="plugin-permissions-title">
+											<h5 id="plugin-permissions-title">
+												{{ 'PLUGINS.PERMISSIONS.TITLE' | translate }}
+											</h5>
+											@switch (preview.status) {
+												@case ('loading') {
+													<p>{{ 'PLUGINS.PERMISSIONS.LOADING' | translate }}</p>
+												}
+												@case ('failed') {
+													<p class="permissions-error">
+														{{ 'PLUGINS.PERMISSIONS.LOAD_FAILED' | translate }}
+													</p>
+													<button
+														mat-stroked-button
+														type="button"
+														(click)="selectVersion(preview.version)"
+													>
+														{{ 'PLUGINS.RETRY' | translate }}
+													</button>
+												}
+												@case ('loaded') {
+													@if (preview.groups.length) {
+														<dl>
+															@for (group of preview.groups; track group.kind) {
+																<dt>
+																	{{
+																		'PLUGINS.PERMISSIONS.GROUPS.' + group.kind
+																			| translate
+																	}}
+																</dt>
+																<dd>
+																	<ul>
+																		@for (value of group.values; track value) {
+																			@let label =
+																				permissionLabel(group.kind, value);
+																			<li>
+																				{{
+																					label ? (label | translate) : value
+																				}}
+																			</li>
+																		}
+																	</ul>
+																</dd>
+															}
+														</dl>
+													} @else {
+														<p>{{ 'PLUGINS.PERMISSIONS.EMPTY' | translate }}</p>
+													}
+												}
+											}
+										</section>
+									}
 								} @else {
 									<p>{{ 'PLUGINS.NO_VERSIONS' | translate }}</p>
 								}
@@ -109,8 +163,12 @@
 								<button
 									mat-button
 									type="button"
-									[disabled]="!selectedVersion() || activation.isStarting(plugin.id)"
-									(click)="activatePlugin(plugin.id, selectedVersion())"
+									[disabled]="
+										preview?.status !== 'loaded' ||
+										preview.pluginId !== plugin.id ||
+										activation.isStarting(plugin.id)
+									"
+									(click)="activatePlugin(plugin.id)"
 								>
 									{{ 'PLUGINS.ACTIVATE' | translate }}
 								</button>
