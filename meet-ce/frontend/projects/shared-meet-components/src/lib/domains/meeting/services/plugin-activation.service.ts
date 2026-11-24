@@ -37,6 +37,8 @@ interface Call {
 	path: string;
 }
 
+type StopRequest = 'pending' | 'failed';
+
 @Service()
 export class PluginActivationService {
 	private readonly http = inject(HttpClient);
@@ -48,6 +50,7 @@ export class PluginActivationService {
 	private readonly call = signal<Call | null>(null);
 	private readonly snapshot = signal<Snapshot | null>(null);
 	private readonly pending = signal(new Set<string>());
+	private readonly stopRequests = signal(new Map<string, StopRequest>());
 	private readonly failedSync = signal(false);
 	private revision = 0;
 
@@ -107,6 +110,14 @@ export class PluginActivationService {
 		return this.pending().has(pluginId);
 	}
 
+	canStop(activation: Activation): boolean {
+		return this.canActivate() && !['FAILED', 'STOPPING', 'STOPPED'].includes(activation.state);
+	}
+
+	stopRequest(activationId: string): StopRequest | undefined {
+		return this.stopRequests().get(activationId);
+	}
+
 	hasWindow(activationId: string): boolean {
 		return this.windows().some(({ id }) => id === 'plugin:' + activationId);
 	}
@@ -127,16 +138,7 @@ export class PluginActivationService {
 				)
 			);
 
-			if (this.call() === call && this.currentRoom() === call.room) {
-				this.revision++;
-				const current = this.snapshot();
-
-				if (current)
-					this.apply({
-						...current,
-						activations: [...current.activations.filter((item) => item.pluginId !== pluginId), activation]
-					});
-			}
+			if (this.isCurrentCall(call)) this.updateActivation(activation);
 
 			return true;
 		} catch {
@@ -152,7 +154,77 @@ export class PluginActivationService {
 		}
 	}
 
+	async stop(pluginId: string, activationId: string): Promise<void> {
+		const call = this.call();
+		const activation = this.activations().get(pluginId);
+
+		if (
+			!call ||
+			!this.isCurrentCall(call) ||
+			activation?.activationId !== activationId ||
+			!this.canStop(activation) ||
+			this.isStarting(pluginId) ||
+			this.stopRequest(activationId) === 'pending'
+		) {
+			return;
+		}
+
+		this.setStopRequest(activationId, 'pending');
+
+		try {
+			const result = await lastValueFrom(
+				this.http.post<Activation>(
+					this.runtime.resolveUrl(call.path + '/' + encodeURIComponent(activationId) + '/deactivate'),
+					{ callId: call.callId },
+					this.httpOptions()
+				)
+			);
+
+			if (!this.isCurrentCall(call)) return;
+
+			const current = this.activations().get(pluginId);
+
+			if (current?.activationId === activationId && current.state !== 'STOPPED') {
+				this.updateActivation(result);
+			}
+
+			this.setStopRequest(activationId, undefined);
+		} catch {
+			if (this.isCurrentCall(call)) this.setStopRequest(activationId, 'failed');
+		}
+	}
+
+	private isCurrentCall(call: Call): boolean {
+		return this.call() === call && this.currentRoom() === call.room;
+	}
+
+	private setStopRequest(activationId: string, status: StopRequest | undefined): void {
+		this.stopRequests.update((requests) => {
+			const next = new Map(requests);
+
+			if (status) next.set(activationId, status);
+			else next.delete(activationId);
+
+			return next;
+		});
+	}
+
+	private updateActivation(activation: Activation): void {
+		const snapshot = this.snapshot();
+
+		if (!snapshot) return;
+
+		this.revision++;
+		this.apply({
+			...snapshot,
+			activations: [...snapshot.activations.filter((item) => item.pluginId !== activation.pluginId), activation]
+		});
+	}
+
 	private async refresh(room: Room, current: () => boolean): Promise<void> {
+		let call = this.call();
+		let revision = this.revision;
+
 		try {
 			if (!current()) return;
 
@@ -160,7 +232,7 @@ export class PluginActivationService {
 
 			if (!current() || !callId) return;
 
-			let call = this.call();
+			call = this.call();
 
 			if (call?.callId !== callId || call.room !== room) {
 				this.clear();
@@ -175,7 +247,7 @@ export class PluginActivationService {
 
 			if (this.snapshot()?.mode === 'disabled') return;
 
-			const revision = this.revision;
+			revision = this.revision;
 			const snapshot = await lastValueFrom(
 				this.http.get<Snapshot>(this.runtime.resolveUrl(call.path), {
 					...this.httpOptions(),
@@ -188,7 +260,7 @@ export class PluginActivationService {
 				this.failedSync.set(false);
 			}
 		} catch (error) {
-			if (!current()) return;
+			if (!current() || this.call() !== call || this.revision !== revision) return;
 
 			if (error instanceof HttpErrorResponse && [401, 403, 404].includes(error.status)) this.apply(null);
 
@@ -216,6 +288,7 @@ export class PluginActivationService {
 	private clear(): void {
 		this.call.set(null);
 		this.pending.set(new Set());
+		this.stopRequests.set(new Map());
 		this.failedSync.set(false);
 		this.apply(null);
 	}

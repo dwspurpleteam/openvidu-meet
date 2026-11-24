@@ -1,0 +1,49 @@
+parameters:
+    - name: roomId
+      in: path
+      required: true
+      schema:
+          type: string
+    - name: activationId
+      in: path
+      required: true
+      schema:
+          type: string
+          format: uuid
+post:
+    operationId: meetingDeactivatePluginActivation
+    summary: Request plugin deactivation as a moderator in the current meeting
+    tags: [Internal API - Plugin Activations]
+    security:
+        - roomMemberTokenHeader: []
+    requestBody:
+        required: true
+        content:
+            application/json:
+                schema:
+                    type: object
+                    required: [callId]
+                    additionalProperties: false
+                    properties:
+                        callId:
+                            description: LiveKit Room SID used to detect a stale request.
+                            type: string
+                            minLength: 1
+                            maxLength: 255
+    responses:
+        '202':
+            description: Deactivation accepted. The activation is STOPPING or was already STOPPED.
+            content:
+                application/json:
+                    schema:
+                        $ref: ./activation.yaml
+        '401':
+            description: Missing or invalid room member token.
+        '403':
+            description: The caller is outside the room or is not a connected moderator.
+        '404':
+            description: The meeting or participant no longer exists, or the activation is unknown in this call.
+        '422':
+            description: Invalid room, call or activation identifier.
+        '503':
+            description: Plugin management is disabled or Plugin Manager could not accept the deactivation.

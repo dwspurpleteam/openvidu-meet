@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { RuntimeConfigService } from '../../../shared/services/runtime-config.service';
 import { RoomMemberContextService } from '../../room-members/services/room-member-context.service';
+import { StreamLayoutStateService } from '../openvidu-components/services/layout/stream-layout-state.service';
 import { RoomEvent } from '../openvidu-components/services/livekit';
 import { MeetingStateService } from './meeting-state.service';
 import { PluginActivationService } from './plugin-activation.service';
@@ -18,7 +19,9 @@ describe('PluginActivationService', () => {
 		ui: null
 	};
 	const ui = { title: 'Attendance', url: 'https://calls.example.invalid/apps/plugin-attendance/?callId=RM_one' };
-	const active = { ...activation, state: 'ACTIVE', ui };
+	const active = { ...activation, state: 'ACTIVE' as const, ui };
+	const stopPath = `${path}/${activation.activationId}/deactivate`;
+	const stopping = { ...activation, state: 'STOPPING' };
 	let service: PluginActivationService;
 	let http: HttpTestingController;
 	let events: Map<RoomEvent, () => void>;
@@ -94,6 +97,86 @@ describe('PluginActivationService', () => {
 		late.flush({ mode: 'manager', canActivate: true, activations: [active] });
 		await Promise.resolve();
 		expect(service.windows()).toEqual([]);
+	});
+
+	it('keeps the iframe until the stop is accepted and ignores an older poll', async () => {
+		const layout = TestBed.inject(StreamLayoutStateService);
+		const windowId = 'plugin:' + activation.activationId;
+		const clearWindow = spyOn(layout, 'clearWindow').and.callThrough();
+		(await poll(1, 'ACTIVE snapshot')).flush({ mode: 'manager', canActivate: true, activations: [active] });
+		await Promise.resolve();
+
+		const stop = service.stop(active.pluginId, active.activationId);
+		await service.stop(active.pluginId, active.activationId);
+		const post = http.expectOne({ url: stopPath, method: 'POST' });
+		expect(post.request.headers.get('x-room-member-token')).toBe('Bearer room-token');
+		expect(post.request.body).toEqual({ callId: 'RM_one' });
+		expect(service.stopRequest(active.activationId)).toBe('pending');
+		expect(service.hasWindow(active.activationId)).toBeTrue();
+
+		const oldPoll = await poll(5000, 'poll started before stop acknowledgement');
+		post.flush(stopping, { status: 202, statusText: 'Accepted' });
+		await stop;
+		expect(service.activations().get(active.pluginId)?.state).toBe('STOPPING');
+		expect(service.hasWindow(active.activationId)).toBeFalse();
+		expect(service.stopRequest(active.activationId)).toBeUndefined();
+		expect(clearWindow).toHaveBeenCalledOnceWith(windowId);
+
+		oldPoll.flush({ mode: 'manager', canActivate: true, activations: [active] });
+		await Promise.resolve();
+		expect(service.activations().get(active.pluginId)?.state).toBe('STOPPING');
+		expect(service.hasWindow(active.activationId)).toBeFalse();
+	});
+
+	it('shows stop updates to a participant who cannot request deactivation', async () => {
+		(await poll(1, 'ACTIVE snapshot')).flush({ mode: 'manager', canActivate: false, activations: [active] });
+		await Promise.resolve();
+		await service.stop(active.pluginId, active.activationId);
+		http.expectNone(stopPath);
+		expect(service.hasWindow(active.activationId)).toBeTrue();
+
+		(await poll(5000, 'STOPPING snapshot')).flush({
+			mode: 'manager',
+			canActivate: false,
+			activations: [stopping]
+		});
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(service.hasWindow(active.activationId)).toBeFalse();
+		expect(service.activations().get(active.pluginId)?.state).toBe('STOPPING');
+
+		(await poll(5000, 'STOPPED snapshot')).flush({
+			mode: 'manager',
+			canActivate: false,
+			activations: [{ ...stopping, state: 'STOPPED' }]
+		});
+		await Promise.resolve();
+		expect(service.activations().get(active.pluginId)?.state).toBe('STOPPED');
+	});
+
+	it('allows retry after a failed stop and keeps the newer activation if the reply is late', async () => {
+		(await poll(1, 'ACTIVE snapshot')).flush({ mode: 'manager', canActivate: true, activations: [active] });
+		await Promise.resolve();
+
+		const failedStop = service.stop(active.pluginId, active.activationId);
+		http.expectOne(stopPath).flush(null, { status: 503, statusText: 'Service Unavailable' });
+		await failedStop;
+		expect(service.stopRequest(active.activationId)).toBe('failed');
+		expect(service.hasWindow(active.activationId)).toBeTrue();
+
+		const retry = service.stop(active.pluginId, active.activationId);
+		const lateStop = http.expectOne(stopPath);
+		const replacement = { ...active, activationId: 'activation-2' };
+		(await poll(5000, 'new activation')).flush({
+			mode: 'manager',
+			canActivate: true,
+			activations: [replacement]
+		});
+		await Promise.resolve();
+		lateStop.flush(stopping, { status: 202, statusText: 'Accepted' });
+		await retry;
+		expect(service.activations().get(active.pluginId)).toEqual(replacement);
+		expect(service.hasWindow(replacement.activationId)).toBeTrue();
 	});
 
 	it('keeps the active window during a Manager outage and resumes syncing on recovery', async () => {

@@ -30,6 +30,7 @@ Every release groups its `Added`, `Improved` and `Fixed` entries by who the chan
 #### UI
 
 - The meeting's Plugins panel shows the selected version's requested permissions before activation.
+- Connected moderators can disconnect plugins from the meeting's Plugins panel.
 
 ### Improved
 

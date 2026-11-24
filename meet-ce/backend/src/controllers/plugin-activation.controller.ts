@@ -11,6 +11,7 @@ const identifier = z
 	.max(255)
 	.refine((value) => value.trim() === value && value !== '.' && value !== '..' && !/[/\\]/.test(value));
 const activation = call.strict().extend({ pluginId: identifier, pluginVersion: identifier });
+const activationId = z.uuid();
 
 export const list = async (req: Request, res: Response) => {
 	const query = call.safeParse(req.query);
@@ -39,5 +40,23 @@ export const activate = async (req: Request, res: Response) => {
 		return res.status(202).json(result);
 	} catch (error) {
 		return handleError(res, error, 'registering a plugin activation');
+	}
+};
+
+export const deactivate = async (req: Request, res: Response) => {
+	const id = activationId.safeParse(req.params.activationId);
+	const body = call.strict().safeParse(req.body);
+
+	if (!id.success) return rejectUnprocessableRequest(res, id.error);
+
+	if (!body.success) return rejectUnprocessableRequest(res, body.error);
+
+	try {
+		const result = await container
+			.get(PluginActivationService)
+			.deactivate(req.params.roomId as string, body.data.callId, id.data);
+		return res.set('Cache-Control', 'no-store').status(202).json(result);
+	} catch (error) {
+		return handleError(res, error, 'requesting plugin deactivation');
 	}
 };
