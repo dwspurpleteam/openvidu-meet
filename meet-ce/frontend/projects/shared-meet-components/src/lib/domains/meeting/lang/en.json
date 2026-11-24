@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "Plugin versions could not be loaded.",
 		"NO_VERSIONS": "No version has been published.",
 		"IFRAME_UNAVAILABLE": "This plugin's interface cannot be opened in the meeting.",
+		"PERMISSIONS": {
+			"TITLE": "Requested permissions",
+			"LOADING": "Loading permissions…",
+			"LOAD_FAILED": "Plugin permissions could not be loaded.",
+			"EMPTY": "No permissions declared.",
+			"GROUPS": {
+				"INITIAL_STATE": "Read at startup",
+				"EVENT_TYPES": "Receive meeting events",
+				"EVENT_GROUPS": "Receive all events in these groups",
+				"MEDIA_INPUT": "Receive media",
+				"MEDIA_OUTPUT": "Publish media",
+				"ACTIONS": "Perform actions"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Current participant list"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Participant joins",
+					"participant.left": "Participant leaves",
+					"participant.connection_aborted": "Participant connection aborted",
+					"participant.reconnecting": "Participant is reconnecting",
+					"participant.reconnected": "Participant has reconnected",
+					"participant.kicked": "Participant is removed",
+					"media.audio_muted": "Microphone is muted",
+					"media.audio_unmuted": "Microphone is unmuted",
+					"media.video_enabled": "Camera is turned on",
+					"media.video_disabled": "Camera is turned off",
+					"media.screen_share_started": "Screen sharing starts",
+					"media.screen_share_stopped": "Screen sharing stops",
+					"media.track_published": "Media track is published",
+					"media.track_unpublished": "Media track is unpublished",
+					"interaction.chat_message_received": "Chat message is received",
+					"call.ended": "Meeting ends"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Participant connection changes",
+					"media": "Microphone, camera, screen share and media tracks",
+					"interaction": "Participant interactions",
+					"call": "Meeting lifecycle"
+				},
+				"MEDIA": {
+					"AUDIO": "Microphone audio",
+					"VIDEO": "Camera video",
+					"SCREEN_SHARE": "Screen share video",
+					"SCREEN_SHARE_AUDIO": "Screen share audio"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Available",
 			"ACTIVATING": "Activating…",

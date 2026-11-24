@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "无法加载插件版本。",
 		"NO_VERSIONS": "尚未发布任何版本。",
 		"IFRAME_UNAVAILABLE": "无法在会议中打开此插件的界面。",
+		"PERMISSIONS": {
+			"TITLE": "请求的权限",
+			"LOADING": "正在加载权限…",
+			"LOAD_FAILED": "无法加载插件权限。",
+			"EMPTY": "未声明任何权限。",
+			"GROUPS": {
+				"INITIAL_STATE": "启动时读取",
+				"EVENT_TYPES": "接收会议事件",
+				"EVENT_GROUPS": "接收以下类别的所有事件",
+				"MEDIA_INPUT": "接收媒体",
+				"MEDIA_OUTPUT": "发布媒体",
+				"ACTIONS": "执行操作"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "当前参会者列表"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "参会者加入",
+					"participant.left": "参会者离开",
+					"participant.connection_aborted": "参会者连接中止",
+					"participant.reconnecting": "参会者正在重新连接",
+					"participant.reconnected": "参会者已重新连接",
+					"participant.kicked": "参会者被移除",
+					"media.audio_muted": "麦克风静音",
+					"media.audio_unmuted": "麦克风取消静音",
+					"media.video_enabled": "摄像头开启",
+					"media.video_disabled": "摄像头关闭",
+					"media.screen_share_started": "屏幕共享开始",
+					"media.screen_share_stopped": "屏幕共享结束",
+					"media.track_published": "媒体轨道发布",
+					"media.track_unpublished": "媒体轨道停止发布",
+					"interaction.chat_message_received": "收到聊天消息",
+					"call.ended": "会议结束"
+				},
+				"EVENT_GROUPS": {
+					"participant": "参会者连接状态变化",
+					"media": "麦克风、摄像头、屏幕共享和媒体轨道",
+					"interaction": "参会者互动",
+					"call": "会议生命周期"
+				},
+				"MEDIA": {
+					"AUDIO": "麦克风音频",
+					"VIDEO": "摄像头视频",
+					"SCREEN_SHARE": "屏幕共享画面",
+					"SCREEN_SHARE_AUDIO": "屏幕共享音频"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "可用",
 			"ACTIVATING": "正在启用…",

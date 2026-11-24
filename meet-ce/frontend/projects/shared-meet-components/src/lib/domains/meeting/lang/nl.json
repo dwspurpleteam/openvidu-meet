@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "De pluginversies konden niet worden geladen.",
 		"NO_VERSIONS": "Er is nog geen versie gepubliceerd.",
 		"IFRAME_UNAVAILABLE": "De interface van deze plugin kan niet worden geopend in de vergadering.",
+		"PERMISSIONS": {
+			"TITLE": "Gevraagde machtigingen",
+			"LOADING": "Machtigingen laden…",
+			"LOAD_FAILED": "De machtigingen van de plugin konden niet worden geladen.",
+			"EMPTY": "Geen machtigingen opgegeven.",
+			"GROUPS": {
+				"INITIAL_STATE": "Lezen bij het starten",
+				"EVENT_TYPES": "Gebeurtenissen van de vergadering ontvangen",
+				"EVENT_GROUPS": "Alle gebeurtenissen in deze groepen ontvangen",
+				"MEDIA_INPUT": "Media ontvangen",
+				"MEDIA_OUTPUT": "Media publiceren",
+				"ACTIONS": "Acties uitvoeren"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Huidige deelnemerslijst"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Deelnemer komt binnen",
+					"participant.left": "Deelnemer vertrekt",
+					"participant.connection_aborted": "Verbinding van deelnemer afgebroken",
+					"participant.reconnecting": "Deelnemer maakt opnieuw verbinding",
+					"participant.reconnected": "Deelnemer is opnieuw verbonden",
+					"participant.kicked": "Deelnemer wordt verwijderd",
+					"media.audio_muted": "Microfoon wordt gedempt",
+					"media.audio_unmuted": "Microfoondemping wordt opgeheven",
+					"media.video_enabled": "Camera wordt ingeschakeld",
+					"media.video_disabled": "Camera wordt uitgeschakeld",
+					"media.screen_share_started": "Scherm delen begint",
+					"media.screen_share_stopped": "Scherm delen stopt",
+					"media.track_published": "Mediaspoor wordt gepubliceerd",
+					"media.track_unpublished": "Publicatie van mediaspoor stopt",
+					"interaction.chat_message_received": "Chatbericht wordt ontvangen",
+					"call.ended": "Vergadering eindigt"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Verbindingswijzigingen van deelnemers",
+					"media": "Microfoon, camera, scherm delen en mediasporen",
+					"interaction": "Interacties tussen deelnemers",
+					"call": "Levenscyclus van de vergadering"
+				},
+				"MEDIA": {
+					"AUDIO": "Microfoonaudio",
+					"VIDEO": "Camerabeeld",
+					"SCREEN_SHARE": "Beeld van gedeeld scherm",
+					"SCREEN_SHARE_AUDIO": "Audio van gedeeld scherm"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Beschikbaar",
 			"ACTIVATING": "Activeren…",

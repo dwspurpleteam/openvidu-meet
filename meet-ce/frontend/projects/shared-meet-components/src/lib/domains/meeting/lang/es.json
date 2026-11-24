@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "No se pudieron cargar las versiones del plugin.",
 		"NO_VERSIONS": "No se ha publicado ninguna versión.",
 		"IFRAME_UNAVAILABLE": "La interfaz de este plugin no se puede abrir en la reunión.",
+		"PERMISSIONS": {
+			"TITLE": "Permisos solicitados",
+			"LOADING": "Cargando permisos…",
+			"LOAD_FAILED": "No se pudieron cargar los permisos del plugin.",
+			"EMPTY": "No se han declarado permisos.",
+			"GROUPS": {
+				"INITIAL_STATE": "Leer al iniciar",
+				"EVENT_TYPES": "Recibir eventos de la reunión",
+				"EVENT_GROUPS": "Recibir todos los eventos de estos grupos",
+				"MEDIA_INPUT": "Recibir contenido multimedia",
+				"MEDIA_OUTPUT": "Publicar contenido multimedia",
+				"ACTIONS": "Realizar acciones"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Lista actual de participantes"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Entrada de un participante",
+					"participant.left": "Salida de un participante",
+					"participant.connection_aborted": "Conexión de un participante interrumpida",
+					"participant.reconnecting": "Participante volviendo a conectar",
+					"participant.reconnected": "Participante reconectado",
+					"participant.kicked": "Expulsión de un participante",
+					"media.audio_muted": "Micrófono silenciado",
+					"media.audio_unmuted": "Micrófono reactivado",
+					"media.video_enabled": "Cámara activada",
+					"media.video_disabled": "Cámara desactivada",
+					"media.screen_share_started": "Inicio de la pantalla compartida",
+					"media.screen_share_stopped": "Fin de la pantalla compartida",
+					"media.track_published": "Publicación de una pista multimedia",
+					"media.track_unpublished": "Fin de la publicación de una pista multimedia",
+					"interaction.chat_message_received": "Recepción de un mensaje de chat",
+					"call.ended": "Fin de la reunión"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Cambios en la conexión de los participantes",
+					"media": "Micrófono, cámara, pantalla compartida y pistas multimedia",
+					"interaction": "Interacciones de los participantes",
+					"call": "Ciclo de vida de la reunión"
+				},
+				"MEDIA": {
+					"AUDIO": "Audio del micrófono",
+					"VIDEO": "Vídeo de la cámara",
+					"SCREEN_SHARE": "Vídeo de la pantalla compartida",
+					"SCREEN_SHARE_AUDIO": "Audio de la pantalla compartida"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Disponible",
 			"ACTIVATING": "Activando…",

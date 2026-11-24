@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "Não foi possível carregar as versões do plugin.",
 		"NO_VERSIONS": "Nenhuma versão foi publicada.",
 		"IFRAME_UNAVAILABLE": "Não é possível abrir a interface deste plugin na reunião.",
+		"PERMISSIONS": {
+			"TITLE": "Permissões solicitadas",
+			"LOADING": "A carregar permissões…",
+			"LOAD_FAILED": "Não foi possível carregar as permissões do plugin.",
+			"EMPTY": "Nenhuma permissão declarada.",
+			"GROUPS": {
+				"INITIAL_STATE": "Ler ao iniciar",
+				"EVENT_TYPES": "Receber eventos da reunião",
+				"EVENT_GROUPS": "Receber todos os eventos destes grupos",
+				"MEDIA_INPUT": "Receber multimédia",
+				"MEDIA_OUTPUT": "Publicar multimédia",
+				"ACTIONS": "Executar ações"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Lista atual de participantes"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Entrada de um participante",
+					"participant.left": "Saída de um participante",
+					"participant.connection_aborted": "Ligação de um participante interrompida",
+					"participant.reconnecting": "Participante a restabelecer a ligação",
+					"participant.reconnected": "Participante voltou a ligar-se",
+					"participant.kicked": "Expulsão de um participante",
+					"media.audio_muted": "Microfone silenciado",
+					"media.audio_unmuted": "Microfone reativado",
+					"media.video_enabled": "Câmara ativada",
+					"media.video_disabled": "Câmara desativada",
+					"media.screen_share_started": "Início da partilha de ecrã",
+					"media.screen_share_stopped": "Fim da partilha de ecrã",
+					"media.track_published": "Publicação de uma faixa multimédia",
+					"media.track_unpublished": "Fim da publicação de uma faixa multimédia",
+					"interaction.chat_message_received": "Receção de uma mensagem de chat",
+					"call.ended": "Fim da reunião"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Alterações nas ligações dos participantes",
+					"media": "Microfone, câmara, partilha de ecrã e faixas multimédia",
+					"interaction": "Interações entre participantes",
+					"call": "Ciclo de vida da reunião"
+				},
+				"MEDIA": {
+					"AUDIO": "Áudio do microfone",
+					"VIDEO": "Vídeo da câmara",
+					"SCREEN_SHARE": "Vídeo do ecrã partilhado",
+					"SCREEN_SHARE_AUDIO": "Áudio do ecrã partilhado"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Disponível",
 			"ACTIVATING": "Ativando…",

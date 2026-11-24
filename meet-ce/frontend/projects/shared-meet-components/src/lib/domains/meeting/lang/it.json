@@ -354,6 +354,55 @@
 		"VERSIONS_FAILED": "Impossibile caricare le versioni del plugin.",
 		"NO_VERSIONS": "Non è stata pubblicata alcuna versione.",
 		"IFRAME_UNAVAILABLE": "Impossibile aprire l’interfaccia di questo plugin nella riunione.",
+		"PERMISSIONS": {
+			"TITLE": "Autorizzazioni richieste",
+			"LOADING": "Caricamento delle autorizzazioni…",
+			"LOAD_FAILED": "Impossibile caricare le autorizzazioni del plugin.",
+			"EMPTY": "Nessuna autorizzazione dichiarata.",
+			"GROUPS": {
+				"INITIAL_STATE": "Lettura all’avvio",
+				"EVENT_TYPES": "Ricezione di eventi della riunione",
+				"EVENT_GROUPS": "Ricezione di tutti gli eventi di questi gruppi",
+				"MEDIA_INPUT": "Ricezione di flussi multimediali",
+				"MEDIA_OUTPUT": "Pubblicazione di flussi multimediali",
+				"ACTIONS": "Esecuzione di azioni"
+			},
+			"VALUES": {
+				"INITIAL_STATE": {
+					"participants": "Elenco attuale dei partecipanti"
+				},
+				"EVENT_TYPES": {
+					"participant.joined": "Ingresso di un partecipante",
+					"participant.left": "Uscita di un partecipante",
+					"participant.connection_aborted": "Connessione di un partecipante interrotta",
+					"participant.reconnecting": "Riconnessione di un partecipante in corso",
+					"participant.reconnected": "Partecipante riconnesso",
+					"participant.kicked": "Espulsione di un partecipante",
+					"media.audio_muted": "Disattivazione del microfono",
+					"media.audio_unmuted": "Riattivazione del microfono",
+					"media.video_enabled": "Attivazione della videocamera",
+					"media.video_disabled": "Disattivazione della videocamera",
+					"media.screen_share_started": "Inizio della condivisione dello schermo",
+					"media.screen_share_stopped": "Fine della condivisione dello schermo",
+					"media.track_published": "Pubblicazione di una traccia multimediale",
+					"media.track_unpublished": "Fine della pubblicazione di una traccia multimediale",
+					"interaction.chat_message_received": "Ricezione di un messaggio di chat",
+					"call.ended": "Fine della riunione"
+				},
+				"EVENT_GROUPS": {
+					"participant": "Cambiamenti di connessione dei partecipanti",
+					"media": "Microfono, videocamera, condivisione dello schermo e tracce multimediali",
+					"interaction": "Interazioni tra partecipanti",
+					"call": "Ciclo di vita della riunione"
+				},
+				"MEDIA": {
+					"AUDIO": "Audio del microfono",
+					"VIDEO": "Video della videocamera",
+					"SCREEN_SHARE": "Video dello schermo condiviso",
+					"SCREEN_SHARE_AUDIO": "Audio dello schermo condiviso"
+				}
+			}
+		},
 		"STATUS": {
 			"AVAILABLE": "Disponibile",
 			"ACTIVATING": "Attivazione…",

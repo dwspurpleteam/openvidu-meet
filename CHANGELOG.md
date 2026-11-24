@@ -27,6 +27,10 @@ Every release groups its `Added`, `Improved` and `Fixed` entries by who the chan
   with the `participantHandLower` permission to lower other participants' hands and the room config
   `raiseHand.enabled` to turn it off.
 
+#### UI
+
+- The meeting's Plugins panel shows the selected version's requested permissions before activation.
+
 ### Improved
 
 #### Integration
