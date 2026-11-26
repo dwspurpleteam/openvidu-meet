@@ -18,12 +18,13 @@ export function getPluginIframeUrl(raw: string): string | null {
 
 @Component({
 	selector: 'ov-plugin-iframe-window',
+	// Plugins can prepare files, but the host iframe must explicitly permit the browser to save them.
 	template: `
 		@if (resourceUrl(); as url) {
 			<iframe
 				[src]="url"
 				[title]="plugin().title"
-				sandbox="allow-scripts"
+				sandbox="allow-scripts allow-downloads"
 				allow="camera 'none'; microphone 'none'; display-capture 'none'; geolocation 'none'"
 				referrerpolicy="no-referrer"
 			></iframe>
