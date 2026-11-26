@@ -2,6 +2,18 @@ import { TestBed } from '@angular/core/testing';
 import { PluginIframeWindowComponent } from './plugin-iframe-window.component';
 
 describe('PluginIframeWindowComponent', () => {
+	it('allows report downloads while preserving iframe isolation', () => {
+		const fixture = TestBed.createComponent(PluginIframeWindowComponent);
+		fixture.componentRef.setInput('plugin', {
+			id: 'plugin:attendance',
+			title: 'Attendance',
+			url: 'https://plugins.example.invalid/attendance'
+		});
+		fixture.detectChanges();
+		const frame: HTMLIFrameElement = fixture.nativeElement.querySelector('iframe');
+		expect(Array.from(frame.sandbox).sort()).toEqual(['allow-downloads', 'allow-scripts']);
+	});
+
 	it('does not reset src when a snapshot replaces the descriptor with the same URL', () => {
 		const fixture = TestBed.createComponent(PluginIframeWindowComponent);
 		const plugin = { id: 'plugin:one', title: 'Notes', url: 'https://plugins.example.invalid/notes' };
@@ -35,7 +47,7 @@ describe('PluginIframeWindowComponent', () => {
 		fixture.componentRef.setInput('plugin', { id: 'plugin:one', title: 'Attendance', url });
 		fixture.detectChanges();
 		const frame: HTMLIFrameElement = fixture.nativeElement.querySelector('iframe');
-		expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+		expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-downloads');
 		expect(frame.referrerPolicy).toBe('no-referrer');
 		expect(frame.src).toBe(url);
 	});
