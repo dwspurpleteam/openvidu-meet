@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { signal, type WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTranslations } from '../../../../shared/models/translation-bundle.model';
 import { LanguageService } from '../../../../shared/services/i18n/language.service';
@@ -10,6 +10,8 @@ import { PanelService } from '../../openvidu-components/services/panel/panel.ser
 import { PluginActivationService } from '../../services/plugin-activation.service';
 import { MeetingPluginsPanelComponent } from './meeting-plugins-panel.component';
 
+type Activation = Parameters<PluginActivationService['canStop']>[0];
+
 describe('MeetingPluginsPanelComponent', () => {
 	const registryUrl = 'https://meet.example/v1/plugins';
 	const first = '1.0.0';
@@ -17,9 +19,17 @@ describe('MeetingPluginsPanelComponent', () => {
 	let fixture: ComponentFixture<MeetingPluginsPanelComponent>;
 	let http: HttpTestingController;
 	let activate: jasmine.Spy<PluginActivationService['activate']>;
+	let stop: jasmine.Spy<PluginActivationService['stop']>;
+	let current: WritableSignal<Activation | null>;
+	let canManage: WritableSignal<boolean>;
+	let stopRequest: WritableSignal<ReturnType<PluginActivationService['stopRequest']>>;
 
 	beforeEach(async () => {
 		activate = jasmine.createSpy('activate').and.resolveTo(true);
+		stop = jasmine.createSpy('stop').and.resolveTo();
+		current = signal(null);
+		canManage = signal(true);
+		stopRequest = signal(undefined);
 		TestBed.configureTestingModule({
 			providers: [
 				provideHttpClient(),
@@ -34,11 +44,18 @@ describe('MeetingPluginsPanelComponent', () => {
 				{
 					provide: PluginActivationService,
 					useValue: {
-						activations: () => new Map(),
+						activations: () => {
+							const activation = current();
+							return activation ? new Map([[activation.pluginId, activation]]) : new Map();
+						},
 						syncFailed: () => false,
-						canActivate: () => true,
+						canActivate: canManage,
+						canStop: (activation: Activation) => canManage() && activation.state === 'ACTIVE',
 						isStarting: () => false,
-						activate
+						hasWindow: () => true,
+						stopRequest,
+						activate,
+						stop
 					}
 				}
 			]
@@ -57,6 +74,47 @@ describe('MeetingPluginsPanelComponent', () => {
 	});
 
 	afterEach(() => http.verify());
+
+	it('shows the activation status and offers disconnect only to a moderator', async () => {
+		const active: Activation = {
+			activationId: 'notes-activation',
+			pluginId: 'notes',
+			pluginVersion: first,
+			state: 'ACTIVE',
+			failureCode: null,
+			ui: null
+		};
+		current.set(active);
+		canManage.set(false);
+		await render();
+		const notes = row('Notes');
+		expect(notes.querySelector('.status-active')?.textContent?.trim()).toBe('Active');
+		expect(button(notes, 'Disconnect')).toBeUndefined();
+
+		canManage.set(true);
+		await render();
+		button(notes, 'Disconnect').click();
+		expect(stop).toHaveBeenCalledOnceWith('notes', active.activationId);
+
+		stopRequest.set('pending');
+		await render();
+		expect(button(notes, 'Disconnecting…').disabled).toBeTrue();
+
+		stopRequest.set('failed');
+		await render();
+		expect(notes.textContent).toContain('The plugin could not be disconnected.');
+		expect(button(notes, 'Disconnect').disabled).toBeFalse();
+
+		current.set({ ...active, state: 'STOPPING' });
+		await render();
+		expect(notes.textContent).toContain('Disconnecting…');
+		expect(button(notes, 'Disconnect')).toBeUndefined();
+
+		current.set({ ...active, state: 'STOPPED' });
+		await render();
+		expect(notes.textContent).toContain('Disconnected');
+		expect(button(notes, 'Choose version')).toBeDefined();
+	});
 
 	it('loads permissions for the only version and shows them before activation', async () => {
 		const notes = row('Notes');

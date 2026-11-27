@@ -4,7 +4,12 @@ import { inject, injectable } from 'inversify';
 import ms from 'ms';
 import { z } from 'zod';
 import { MEET_ENV } from '../environment.js';
-import { errorInsufficientPermissions, errorNoActiveMeeting, OpenViduMeetError } from '../models/error.model.js';
+import {
+	errorInsufficientPermissions,
+	errorNoActiveMeeting,
+	errorResourceNotFound,
+	OpenViduMeetError
+} from '../models/error.model.js';
 import { RedisKeyName, RedisLockName, RedisLockPrefix } from '../models/redis.model.js';
 import { LiveKitService } from './livekit.service.js';
 import { MeetingService } from './meeting.service.js';
@@ -24,6 +29,11 @@ const activationStates = z.enum([
 	'STOPPED'
 ]);
 const registrationSchema = z.object({ activationId: z.uuid() });
+const deactivationSchema = registrationSchema.extend({
+	pluginId: z.string(),
+	success: z.boolean(),
+	deactivatedAt: z.int().nullable()
+});
 const statusSchema = registrationSchema.extend({
 	callId: z.string(),
 	pluginId: z.string(),
@@ -102,16 +112,7 @@ export class PluginActivationService {
 	}
 
 	async activate(roomId: string, callId: string, selection: Selection): Promise<ActivationView> {
-		const identity = this.requireRoomMember(roomId);
-
-		if (!MEET_ENV.PLUGIN_MANAGER_URL) {
-			throw new OpenViduMeetError('Service Unavailable', 'Plugin activation is disabled', 503);
-		}
-
-		const participant = await this.getParticipant(roomId, callId, identity);
-
-		if (participant.role !== MeetRoomMemberRole.MODERATOR) throw errorInsufficientPermissions();
-
+		const identity = await this.requireModerator(roomId, callId);
 		const key = this.storageKey(callId);
 		const lock = RedisLockPrefix.BASE + RedisLockName.PLUGIN_ACTIVATIONS + ':manager:' + callId;
 		const view = await this.mutex.withRetryLock(
@@ -193,6 +194,49 @@ export class PluginActivationService {
 		if (!view) throw new OpenViduMeetError('Conflict', 'A plugin registration is already in progress', 409);
 
 		return view;
+	}
+
+	async deactivate(roomId: string, callId: string, activationId: string): Promise<ActivationView> {
+		const identity = await this.requireModerator(roomId, callId);
+		const stored = await this.read(this.storageKey(callId));
+		const registration = stored.find(
+			(item): item is Registration => 'activationId' in item && item.activationId === activationId
+		);
+
+		if (!registration) throw errorResourceNotFound();
+
+		const result = await this.managerRequest(
+			'/v1/activations/' + activationId + '/deactivate',
+			deactivationSchema,
+			{
+				method: 'POST',
+				body: JSON.stringify({ requestedBy: identity })
+			}
+		);
+
+		if (
+			result.activationId !== activationId ||
+			result.pluginId !== registration.pluginId ||
+			result.success !== (result.deactivatedAt !== null)
+		) {
+			throw this.managerUnavailable();
+		}
+
+		return this.view(registration, callId, result.success ? 'STOPPED' : 'STOPPING', null);
+	}
+
+	private async requireModerator(roomId: string, callId: string): Promise<string> {
+		const identity = this.requireRoomMember(roomId);
+
+		if (!MEET_ENV.PLUGIN_MANAGER_URL) {
+			throw new OpenViduMeetError('Service Unavailable', 'Plugin activation is disabled', 503);
+		}
+
+		const participant = await this.getParticipant(roomId, callId, identity);
+
+		if (participant.role !== MeetRoomMemberRole.MODERATOR) throw errorInsufficientPermissions();
+
+		return identity;
 	}
 
 	private requireRoomMember(roomId: string): string {

@@ -32,6 +32,8 @@ paths:
         $ref: './room-members/internal/room-members.yaml#/~1rooms~1{roomId}~1members~1token~1refresh'
     /rooms/{roomId}/plugin-activations:
         $ref: './plugins/plugin-activations.yaml'
+    /rooms/{roomId}/plugin-activations/{activationId}/deactivate:
+        $ref: './plugins/plugin-deactivation.yaml'
     /ai/assistants:
         $ref: './ai-assistants/ai-assistants.yaml#/~1ai~1assistants'
     /ai/assistants/{assistantId}:

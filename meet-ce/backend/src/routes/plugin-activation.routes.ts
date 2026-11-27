@@ -21,3 +21,10 @@ pluginActivationRouter.post(
 	withValidRoomId,
 	pluginActivationCtrl.activate
 );
+pluginActivationRouter.post(
+	path + '/:activationId/deactivate',
+	apiLimiter,
+	withAuth(roomMemberTokenValidator),
+	withValidRoomId,
+	pluginActivationCtrl.deactivate
+);

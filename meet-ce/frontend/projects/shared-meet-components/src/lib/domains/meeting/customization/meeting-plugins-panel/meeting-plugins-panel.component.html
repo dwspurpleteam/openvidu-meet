@@ -70,6 +70,13 @@
 								</p>
 							}
 							@if (
+								current &&
+								activation.canStop(current) &&
+								activation.stopRequest(current.activationId) === 'failed'
+							) {
+								<p class="status-activation_failed">{{ 'PLUGINS.STOP_FAILED' | translate }}</p>
+							}
+							@if (
 								versions?.pluginId === plugin.id &&
 								activation.canActivate() &&
 								(!current || current.state === 'FAILED' || current.state === 'STOPPED')
@@ -187,6 +194,16 @@
 									}}
 								</button>
 							}
+						} @else if (activation.canStop(current)) {
+							@let stopping = activation.stopRequest(current.activationId) === 'pending';
+							<button
+								mat-button
+								type="button"
+								[disabled]="stopping || activation.isStarting(plugin.id)"
+								(click)="activation.stop(plugin.id, current.activationId)"
+							>
+								{{ (stopping ? 'PLUGINS.STATUS.STOPPING' : 'PLUGINS.STOP') | translate }}
+							</button>
 						}
 					</article>
 				}

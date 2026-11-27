@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { MeetRoomMemberRole } from '@openvidu-meet/typings';
-import '../../../src/config/dependency-injector.config.js';
+import express from 'express';
+import request from 'supertest';
+import { container } from '../../../src/config/dependency-injector.config.js';
 import { MEET_ENV } from '../../../src/environment.js';
+import { roomMemberTokenValidator } from '../../../src/middlewares/auth.middleware.js';
+import { pluginActivationRouter } from '../../../src/routes/plugin-activation.routes.js';
 import { PluginActivationService } from '../../../src/services/plugin-activation.service.js';
 
 const managerUrl = MEET_ENV.PLUGIN_MANAGER_URL;
@@ -17,6 +21,17 @@ const configuration = {
 };
 const roomId = 'room-1';
 const callId = 'RM_current';
+const activeStatus = {
+	...selection,
+	activationId,
+	callId,
+	requestedVersion: selection.pluginVersion,
+	requestedRegistryId: 'local',
+	registryId: 'local',
+	state: 'ACTIVE',
+	failureCode: null
+};
+const deactivation = { activationId, pluginId: selection.pluginId, success: false, deactivatedAt: null };
 
 describe('PluginActivationService', () => {
 	let role: MeetRoomMemberRole;
@@ -57,9 +72,90 @@ describe('PluginActivationService', () => {
 		const fetch = jest.spyOn(globalThis, 'fetch');
 		role = MeetRoomMemberRole.SPEAKER;
 		await expect(service.activate(roomId, callId, selection)).rejects.toMatchObject({ statusCode: 403 });
+		await expect(service.deactivate(roomId, callId, activationId)).rejects.toMatchObject({ statusCode: 403 });
 		role = MeetRoomMemberRole.MODERATOR;
 		await expect(service.activate(roomId, 'RM_previous', selection)).rejects.toMatchObject({ statusCode: 404 });
+		await expect(service.deactivate(roomId, 'RM_previous', activationId)).rejects.toMatchObject({
+			statusCode: 404
+		});
+		await expect(service.deactivate('other-room', callId, activationId)).rejects.toMatchObject({ statusCode: 403 });
 		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('forwards the moderator identity and tracks accepted and completed stops', async () => {
+		const fetch = await registerActivePlugin();
+		fetch
+			.mockResolvedValueOnce(Response.json(deactivation, { status: 202 }))
+			.mockResolvedValueOnce(Response.json({ ...activeStatus, state: 'STOPPED' }))
+			.mockResolvedValueOnce(
+				Response.json({ ...deactivation, success: true, deactivatedAt: 1780000000 }, { status: 202 })
+			);
+
+		expect(await service.deactivate(roomId, callId, activationId)).toEqual({
+			...selection,
+			activationId,
+			state: 'STOPPING',
+			failureCode: null,
+			ui: null
+		});
+		expect(fetch).toHaveBeenLastCalledWith(
+			new URL(`http://manager.example/v1/activations/${activationId}/deactivate`),
+			expect.objectContaining({ method: 'POST', body: JSON.stringify({ requestedBy: 'participant-1' }) })
+		);
+
+		role = MeetRoomMemberRole.SPEAKER;
+		expect(await service.list(roomId, callId)).toMatchObject({
+			canActivate: false,
+			activations: [{ activationId, state: 'STOPPED', ui: null }]
+		});
+		role = MeetRoomMemberRole.MODERATOR;
+		expect(await service.deactivate(roomId, callId, activationId)).toMatchObject({ state: 'STOPPED', ui: null });
+	});
+
+	it('does not forward an activation from an earlier call or an unknown ID', async () => {
+		const fetch = await registerActivePlugin();
+		fetch.mockClear();
+		await expect(service.deactivate(roomId, callId, 'bdfcec23-b508-4c18-ba64-6d4135797715')).rejects.toMatchObject({
+			statusCode: 404
+		});
+		sid = 'RM_next';
+		await expect(service.deactivate(roomId, sid, activationId)).rejects.toMatchObject({ statusCode: 404 });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('reports an unavailable route or a mismatched acknowledgement and allows a retry', async () => {
+		const fetch = await registerActivePlugin();
+		fetch
+			.mockResolvedValueOnce(new Response(null, { status: 404 }))
+			.mockResolvedValueOnce(Response.json({ ...deactivation, pluginId: 'other-plugin' }, { status: 202 }))
+			.mockResolvedValueOnce(Response.json(deactivation, { status: 202 }));
+
+		await expect(service.deactivate(roomId, callId, activationId)).rejects.toMatchObject({ statusCode: 503 });
+		await expect(service.deactivate(roomId, callId, activationId)).rejects.toMatchObject({ statusCode: 503 });
+		await expect(service.deactivate(roomId, callId, activationId)).resolves.toMatchObject({ state: 'STOPPING' });
+	});
+
+	it('requires authentication and validates the deactivation request at the HTTP route', async () => {
+		const fetch = await registerActivePlugin();
+		fetch.mockClear().mockResolvedValueOnce(Response.json(deactivation, { status: 202 }));
+		jest.spyOn(roomMemberTokenValidator, 'validate').mockResolvedValue(undefined);
+		const app = express().use(express.json(), pluginActivationRouter);
+		const path = `/${roomId}/plugin-activations/${activationId}/deactivate`;
+		const withToken = (url: string) => request(app).post(url).set('x-room-member-token', 'Bearer room-token');
+		container.snapshot();
+
+		try {
+			(await container.rebindAsync(PluginActivationService)).toConstantValue(service);
+			await request(app).post(path).send({ callId }).expect(401);
+			await withToken(path).send({ callId, requestedBy: 'spoofed' }).expect(422);
+			await withToken(`/${roomId}/plugin-activations/not-a-uuid/deactivate`).send({ callId }).expect(422);
+			expect(fetch).not.toHaveBeenCalled();
+
+			const response = await withToken(path).send({ callId }).expect(202);
+			expect(response.body).toMatchObject({ activationId, state: 'STOPPING', ui: null });
+		} finally {
+			container.restore();
+		}
 	});
 
 	it('retries the same trusted request after a transport failure and publishes the UI only after ACTIVE', async () => {
@@ -263,4 +359,14 @@ describe('PluginActivationService', () => {
 		});
 		await expect(service.list(roomId, callId)).rejects.toMatchObject({ statusCode: 503 });
 	});
+
+	async function registerActivePlugin() {
+		const fetch = jest
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValueOnce(Response.json(configuration))
+			.mockResolvedValueOnce(Response.json({ activationId }, { status: 202 }))
+			.mockResolvedValueOnce(Response.json(activeStatus));
+		await service.activate(roomId, callId, selection);
+		return fetch;
+	}
 });
